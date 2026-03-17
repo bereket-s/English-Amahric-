@@ -422,117 +422,144 @@ export default function GlossaryPage() {
 
         {/* ── Right: Practice Panel ── */}
         <div style={{ position: 'sticky', top: 'calc(var(--nav-height) + 16px)' }}>
-          <div className="card" style={{ border: '1.5px solid var(--brand-200)', background: 'linear-gradient(160deg, #fff 60%, var(--brand-50))', maxHeight: 'calc(100vh - var(--nav-height) - 80px)', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--brand-700)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mic2 size={18} /> Pronunciation Practice
-              </h2>
+          <div className="card" style={{ border: 'none', overflow: 'hidden', boxShadow: '0 8px 32px rgba(99,102,241,0.12)', background: '#fff' }}>
+
+            {/* Gradient Header */}
+            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)', padding: '16px 18px 18px', marginBottom: 0, position: 'relative' }}>
+              {/* Mobile drag pill */}
+              <div className="mobile-close-btn" style={{ display: 'none', width: '36px', height: '4px', background: 'rgba(255,255,255,0.4)', borderRadius: '99px', margin: '0 auto 12px' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <div style={{ width: '30px', height: '30px', background: 'rgba(255,255,255,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Mic2 size={16} color="#fff" />
+                    </div>
+                    <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pronunciation Practice</span>
+                  </div>
+                  {practiceEntry ? (
+                    <div>
+                      <p style={{ color: '#fff', fontSize: '20px', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>{expectedText}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', margin: '3px 0 0', fontStyle: 'italic' }}>{practiceEntry.amharic_term}</p>
+                    </div>
+                  ) : (
+                    <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '14px', margin: 0 }}>Choose a term to practice</p>
+                  )}
+                </div>
+                {practiceEntry && (
+                  <button
+                    onClick={() => setPracticeEntry(null)}
+                    className="mobile-close-btn"
+                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                  >
+                    <X size={16} color="#fff" />
+                  </button>
+                )}
+              </div>
               {practiceEntry && (
-                <button 
-                  onClick={() => setPracticeEntry(null)} 
-                  className="btn btn-ghost btn-sm mobile-close-btn"
-                  style={{ width: '32px', height: '32px', padding: 0, minHeight: '32px' }}
-                >
-                  <X size={18} />
-                </button>
+                <div style={{ marginTop: '10px' }}>
+                  <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '99px', backdropFilter: 'blur(4px)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {practiceMode === 'term' ? '🎯 Term' : practiceMode === 'sentence' ? '📝 Sentence' : practiceMode === 'interpret-term' ? '🌐 Interpret Term' : '🌐 Interpret Sentence'}
+                  </span>
+                </div>
               )}
             </div>
 
-            {!practiceEntry ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)' }}>
-                <Mic2 size={36} style={{ opacity: 0.3, marginBottom: '10px' }} />
-                <p style={{ fontSize: '13.5px', lineHeight: 1.6 }}>
-                  Click <strong>"Practice Term"</strong> or <strong>"Practice Sentence"</strong> on any entry to get started.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div style={{ marginBottom: '14px', padding: '12px', background: 'var(--surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                  <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
-                    Practicing {practiceLabel}
+            <div style={{ padding: '18px' }}>
+              {!practiceEntry ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>
+                  <div style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #ede9fe, #f3e8ff)', borderRadius: '50%', margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Mic2 size={28} color="#8b5cf6" />
+                  </div>
+                  <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>Ready to Practice?</p>
+                  <p style={{ fontSize: '13px', lineHeight: 1.6 }}>
+                    Click <strong style={{ color: 'var(--brand-600)' }}>"Practice Term"</strong> on any entry below to get started.
                   </p>
-                  <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '2px' }}>{expectedText}</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{practiceEntry.amharic_term}</p>
                 </div>
-
-                <div style={{ marginBottom: '10px' }}>
-                  <button onClick={() => speakEnglish(expectedText)} className="btn btn-secondary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+              ) : (
+                <>
+                  {/* Hear button */}
+                  <button
+                    onClick={() => speakEnglish(expectedText)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ width: '100%', justifyContent: 'center', marginBottom: '14px', borderRadius: '12px', fontWeight: 600, gap: '8px', border: '1.5px solid var(--border-strong)' }}
+                  >
                     <Volume2 size={15} /> Hear Pronunciation
                   </button>
-                </div>
 
-                {/* Recorder */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', justifyContent: 'center' }}>
-                  <Recorder
-                    onRecorded={blob => {
-                      setRecordedBlob(blob)
-                      setTranscription(''); setTranscriptionStatus(''); setMatchScore(null)
-                      setMatchStatus(''); setSaveStatus(''); setMatchedWords([]); setMissingWords([]); setExtraWords([])
-                    }}
-                  />
-                </div>
-
-                {recordedAudioUrl && (
-                  <div style={{ marginTop: '12px' }}>
-                    <audio controls src={recordedAudioUrl} style={{ width: '100%', height: '36px' }} />
-                    <button
-                      onClick={transcribeRecording}
-                      disabled={isChecking}
-                      className="btn btn-primary"
-                      style={{ width: '100%', justifyContent: 'center', marginTop: '10px' }}
-                    >
-                      {isChecking ? '⏳ Checking…' : '🔍 Check My Pronunciation'}
-                    </button>
+                  {/* Recorder */}
+                  <div style={{ background: 'linear-gradient(135deg, #f8f7ff, #fdf4ff)', border: '1.5px solid #e9d5ff', borderRadius: '16px', padding: '16px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                    <p style={{ fontSize: '12px', fontWeight: 600, color: '#7c3aed', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🎙 Record your voice</p>
+                    <Recorder
+                      onRecorded={blob => {
+                        setRecordedBlob(blob)
+                        setTranscription(''); setTranscriptionStatus(''); setMatchScore(null)
+                        setMatchStatus(''); setSaveStatus(''); setMatchedWords([]); setMissingWords([]); setExtraWords([])
+                      }}
+                    />
                   </div>
-                )}
 
-                {transcriptionStatus && (
-                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '10px', textAlign: 'center' }}>{transcriptionStatus}</p>
-                )}
-
-                {/* Results */}
-                {matchScore !== null && (
-                  <div style={{ marginTop: '14px', borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }} className="animate-bounceIn">
-                    <ScoreRing score={matchScore} size={88} label="Match Score" />
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                      <span className={statusBadgeClass(matchStatus)} style={{ fontSize: '13px', padding: '4px 10px' }}>{matchStatus}</span>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--brand-700)', marginTop: '4px' }}>
-                        {getEncouragement(matchScore)}
-                      </span>
+                  {recordedAudioUrl && (
+                    <div style={{ marginTop: '14px' }}>
+                      <audio controls src={recordedAudioUrl} style={{ width: '100%', height: '36px', borderRadius: '8px' }} />
+                      <button
+                        onClick={transcribeRecording}
+                        disabled={isChecking}
+                        className="btn btn-primary"
+                        style={{ width: '100%', justifyContent: 'center', marginTop: '10px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', padding: '12px', background: isChecking ? 'var(--brand-300)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}
+                      >
+                        {isChecking ? '⏳ Checking…' : '🔍 Check My Pronunciation'}
+                      </button>
                     </div>
+                  )}
 
-                    {transcription && (
-                      <div style={{ width: '100%', padding: '10px 12px', background: 'var(--surface-alt)', borderRadius: 'var(--radius-sm)', fontSize: '13px', lineHeight: 1.5 }}>
-                        <span style={{ fontWeight: 700, fontSize: '11px', color: 'var(--text-muted)' }}>{practiceMode.startsWith('interpret') ? 'YOU INTERPRETED:' : 'YOU SAID:'} </span>
-                        {transcription}
+                  {transcriptionStatus && (
+                    <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '10px', textAlign: 'center' }}>{transcriptionStatus}</p>
+                  )}
+
+                  {/* Results */}
+                  {matchScore !== null && (
+                    <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }} className="animate-bounceIn">
+                      <ScoreRing score={matchScore} size={88} label="Match Score" />
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <span className={statusBadgeClass(matchStatus)} style={{ fontSize: '13px', padding: '4px 12px', borderRadius: '99px' }}>{matchStatus}</span>
+                        <span style={{ fontSize: '15px', fontWeight: 700, color: matchScore >= 90 ? '#059669' : matchScore >= 60 ? '#d97706' : '#dc2626' }}>
+                          {getEncouragement(matchScore)}
+                        </span>
                       </div>
-                    )}
 
-                    {aiFeedback && practiceMode.startsWith('interpret') && (
-                      <div style={{ width: '100%', padding: '12px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: 'var(--radius-sm)', fontSize: '13px', lineHeight: 1.6, color: 'var(--brand-900)' }}>
-                        <span style={{ fontWeight: 700, fontSize: '11px', color: 'var(--brand-600)', display: 'block', marginBottom: '4px' }}>AI EVALUATION:</span>
-                        {aiFeedback}
-                      </div>
-                    )}
+                      {transcription && (
+                        <div style={{ width: '100%', padding: '10px 14px', background: '#f8f7ff', border: '1px solid #e9d5ff', borderRadius: '12px', fontSize: '13px', lineHeight: 1.6 }}>
+                          <span style={{ fontWeight: 700, fontSize: '10px', color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '2px' }}>{practiceMode.startsWith('interpret') ? 'YOU INTERPRETED:' : '🗣 YOU SAID:'}</span>
+                          {transcription}
+                        </div>
+                      )}
 
-                    {!aiFeedback && (matchedWords.length > 0 || missingWords.length > 0 || extraWords.length > 0) && (
-                      <div style={{ width: '100%', fontSize: '12.5px', lineHeight: 1.6 }}>
-                        {matchedWords.length > 0 && <p><span style={{ fontWeight: 600, color: 'var(--success)' }}>✓ Matched:</span> {matchedWords.map((w, i) => <span key={i} className="word-matched" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
-                        {missingWords.length > 0 && <p style={{ marginTop: '4px' }}><span style={{ fontWeight: 600, color: 'var(--danger)' }}>✗ Missing:</span> {missingWords.map((w, i) => <span key={i} className="word-missing" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
-                        {extraWords.length > 0 && <p style={{ marginTop: '4px' }}><span style={{ fontWeight: 600, color: 'var(--warning)' }}>~ Extra:</span> {extraWords.map((w, i) => <span key={i} className="word-extra" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
-                      </div>
-                    )}
-                  </div>
-                )}
+                      {aiFeedback && practiceMode.startsWith('interpret') && (
+                        <div style={{ width: '100%', padding: '12px 14px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: '12px', fontSize: '13px', lineHeight: 1.6, color: 'var(--brand-900)' }}>
+                          <span style={{ fontWeight: 700, fontSize: '10px', color: 'var(--brand-600)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>🤖 AI EVALUATION:</span>
+                          {aiFeedback}
+                        </div>
+                      )}
 
-                {saveStatus && (
-                  <p style={{ fontSize: '12px', color: saveStatus.includes('✓') ? 'var(--success)' : 'var(--danger)', textAlign: 'center', marginTop: '8px' }}>
-                    {saveStatus}
-                  </p>
-                )}
-              </>
-            )}
+                      {!aiFeedback && (matchedWords.length > 0 || missingWords.length > 0 || extraWords.length > 0) && (
+                        <div style={{ width: '100%', fontSize: '12.5px', lineHeight: 1.7, background: 'var(--surface)', padding: '10px 12px', borderRadius: '10px' }}>
+                          {matchedWords.length > 0 && <p><span style={{ fontWeight: 700, color: 'var(--success)' }}>✓ Matched:</span> {matchedWords.map((w, i) => <span key={i} className="word-matched" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
+                          {missingWords.length > 0 && <p style={{ marginTop: '4px' }}><span style={{ fontWeight: 700, color: 'var(--danger)' }}>✗ Missing:</span> {missingWords.map((w, i) => <span key={i} className="word-missing" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
+                          {extraWords.length > 0 && <p style={{ marginTop: '4px' }}><span style={{ fontWeight: 700, color: 'var(--warning)' }}>~ Extra:</span> {extraWords.map((w, i) => <span key={i} className="word-extra" style={{ marginRight: '4px' }}>{w}</span>)}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {saveStatus && (
+                    <p style={{ fontSize: '12px', color: saveStatus.includes('✓') ? 'var(--success)' : 'var(--danger)', textAlign: 'center', marginTop: '8px', fontWeight: 600 }}>
+                      {saveStatus}
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           {selectedEntry && (
