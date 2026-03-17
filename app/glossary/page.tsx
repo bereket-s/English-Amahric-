@@ -591,28 +591,32 @@ export default function GlossaryPage() {
           
           /* The right side (practice panel) becomes a fixed bottom sheet overlay */
           main > div:last-of-type > div:last-child {
-            display: ${practiceEntry ? 'block' : 'none'};
+            display: ${practiceEntry ? 'flex' : 'none'};
+            flex-direction: column;
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             top: auto;
+            max-height: 85vh;
+            overflow-y: auto;
             z-index: 100;
             background: #fff;
-            padding: 16px;
             border-top: 1px solid var(--border-strong);
             box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
             border-radius: 24px 24px 0 0;
             animation: slideUp 0.3s ease-out forwards;
+            padding: 0;
           }
 
-          /* Constrain the card inside the bottom sheet */
+          /* Remove card constraints inside the bottom sheet */
           main > div:last-of-type > div:last-child .card {
-            max-height: 60vh !important;
+            max-height: none !important;
             border: none !important;
             box-shadow: none !important;
-            padding: 0 !important;
+            border-radius: 0 !important;
             background: transparent !important;
+            overflow: visible !important;
           }
 
           @keyframes slideUp {
