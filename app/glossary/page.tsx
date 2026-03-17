@@ -534,11 +534,18 @@ export default function GlossaryPage() {
 
       </div>
 
-      {/* Mobile practice panel (shown below list on small screens) */}
+      {/* Mobile practice panel positioning */}
       <style>{`
         @media (max-width: 820px) {
           main > div:last-of-type {
-            grid-template-columns: 1fr !important;
+            display: flex !important;
+            flex-direction: column-reverse !important;
+            gap: 20px;
+          }
+          main > div:last-of-type > div:last-child {
+            position: relative;
+            top: 0;
+            z-index: 10;
           }
         }
       `}</style>
