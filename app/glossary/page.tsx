@@ -423,9 +423,20 @@ export default function GlossaryPage() {
         {/* ── Right: Practice Panel ── */}
         <div style={{ position: 'sticky', top: 'calc(var(--nav-height) + 16px)' }}>
           <div className="card" style={{ border: '1.5px solid var(--brand-200)', background: 'linear-gradient(160deg, #fff 60%, var(--brand-50))', maxHeight: 'calc(100vh - var(--nav-height) - 80px)', overflowY: 'auto' }}>
-            <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '14px', color: 'var(--brand-700)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Mic2 size={18} /> Pronunciation Practice
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--brand-700)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mic2 size={18} /> Pronunciation Practice
+              </h2>
+              {practiceEntry && (
+                <button 
+                  onClick={() => setPracticeEntry(null)} 
+                  className="btn btn-ghost btn-sm mobile-close-btn"
+                  style={{ width: '32px', height: '32px', padding: 0, minHeight: '32px' }}
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
 
             {!practiceEntry ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)' }}>
@@ -536,16 +547,50 @@ export default function GlossaryPage() {
 
       {/* Mobile practice panel positioning */}
       <style>{`
+        /* Desktop */
+        @media (min-width: 821px) {
+          .mobile-close-btn { display: none; }
+        }
+
+        /* Mobile */
         @media (max-width: 820px) {
           main > div:last-of-type {
-            display: flex !important;
-            flex-direction: column-reverse !important;
-            gap: 20px;
+            display: block !important;
           }
+          /* The left side (list) takes full width */
+          main > div:last-of-type > div:first-child {
+            width: 100%;
+          }
+          
+          /* The right side (practice panel) becomes a fixed bottom sheet overlay */
           main > div:last-of-type > div:last-child {
-            position: relative;
-            top: 0;
-            z-index: 10;
+            display: ${practiceEntry ? 'block' : 'none'};
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            top: auto;
+            z-index: 100;
+            background: #fff;
+            padding: 16px;
+            border-top: 1px solid var(--border-strong);
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+            border-radius: 24px 24px 0 0;
+            animation: slideUp 0.3s ease-out forwards;
+          }
+
+          /* Constrain the card inside the bottom sheet */
+          main > div:last-of-type > div:last-child .card {
+            max-height: 60vh !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+
+          @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
           }
         }
       `}</style>
