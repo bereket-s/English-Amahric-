@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       title: `📚 Word of the moment`,
       body: `${term.english_term} → ${term.amharic_term}`,
       tag: 'random-word',
-      url: '/glossary',
+      url: `/glossary?term=${encodeURIComponent(term.english_term)}`,
     })
 
     const results = await Promise.allSettled(
