@@ -5,7 +5,7 @@ import { parseTxtFile } from '../../../src/lib/parsers/txt'
 import { parseDocxFile } from '../../../src/lib/parsers/docx'
 import { parseCsvFile } from '../../../src/lib/parsers/csv'
 import { parseJsonFile } from '../../../src/lib/parsers/json'
-import { extractGlossaryEntriesFromText } from '../../../src/lib/parsers/extractor'
+import { extractGlossaryEntriesFromText, extractScenariosFromText } from '../../../src/lib/parsers/extractor'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,6 +14,8 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const uploadType = searchParams.get('type') || 'glossary' // 'glossary' or 'scenario'
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const level = (formData.get('level') as string | null)?.trim() || null
@@ -235,9 +237,56 @@ export async function POST(request: Request) {
     }
 
     if (parsedText) {
-      const extracted = await extractGlossaryEntriesFromText(parsedText, file.name)
-      const saveErrorResponse = await saveParsedEntries(extracted.entries)
-      if (saveErrorResponse) return saveErrorResponse
+      // Auto-detect scenario PDFs by query param or filename
+      const isScenarioPdf = uploadType === 'scenario' || file.name.toLowerCase().includes('scenario')
+
+      if (isScenarioPdf) {
+        // Extract scenarios via AI
+        const scenarios = await extractScenariosFromText(parsedText, file.name)
+
+        if (scenarios && scenarios.length > 0) {
+          const scenarioRows = scenarios.map(s => ({
+            title: s.title,
+            level: s.level || level,
+            topic: s.topic || topic,
+            source_type: 'upload',
+          }))
+          const { data: scenariosInserted, error: scError } = await supabase.from('scenarios').insert(scenarioRows).select()
+          
+          if (scError) {
+            return NextResponse.json({ error: 'Failed to save PDF scenarios', details: scError.message }, { status: 500 })
+          }
+
+          const turnRows: { scenario_id: string; turn_order: number; speaker: string; source_language: string; source_text: string; target_reference_text: string | null }[] = []
+          scenarios.forEach((s, idx) => {
+            const insertedId = scenariosInserted[idx]?.id
+            if (!insertedId) return
+            s.turns.forEach((t, tIdx) => {
+              turnRows.push({
+                scenario_id: insertedId,
+                turn_order: tIdx + 1,
+                speaker: t.speaker,
+                source_language: t.source_language,
+                source_text: t.source_text,
+                target_reference_text: t.target_reference_text || null,
+              })
+            })
+          })
+
+          if (turnRows.length > 0) {
+            const { error: tError } = await supabase.from('scenario_turns').insert(turnRows)
+            if (tError) {
+              return NextResponse.json({ error: 'Failed to save PDF scenario turns', details: tError.message }, { status: 500 })
+            }
+          }
+
+          extractedEntriesCount = scenarios.reduce((sum, s) => sum + s.turns.length, 0)
+        }
+      } else {
+        const extracted = await extractGlossaryEntriesFromText(parsedText, file.name)
+        const saveErrorResponse = await saveParsedEntries(extracted.entries)
+        if (saveErrorResponse) return saveErrorResponse
+      }
     }
 
     await supabase

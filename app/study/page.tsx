@@ -17,6 +17,7 @@ export default function StudyPage() {
   const [selectedFile, setSelectedFile]         = useState<File | null>(null)
   const [level, setLevel]                       = useState('')
   const [topic, setTopic]                       = useState('')
+  const [uploadType, setUploadType]             = useState<'glossary' | 'scenario'>('glossary')
   const [message, setMessage]                   = useState('')
   const [messageType, setMessageType]           = useState<'success' | 'error' | ''>('')
   const [pages, setPages]                       = useState<number | null>(null)
@@ -48,14 +49,21 @@ export default function StudyPage() {
     form.append('level', level)
     form.append('topic', topic)
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      const res = await fetch(`/api/upload?type=${uploadType}`, { method: 'POST', body: form })
       const result = await res.json()
       if (!res.ok) {
-        setMessage(result.error || 'Upload failed.')
+        if (uploadType === 'scenario') {
+          setMessage(result.error || 'Scenario upload failed. Make sure your PDF has dialogue scripts.')
+        } else {
+          setMessage(result.error || 'Upload failed.')
+        }
         setMessageType('error')
         return
       }
-      setMessage(`Saved ${result.savedEntriesCount || 0} entries from "${result.fileName}"`)
+      const savedMsg = uploadType === 'scenario'
+        ? `Extracted ${result.extractedEntriesCount || 0} scenario turns from "${result.fileName}"`
+        : `Saved ${result.savedEntriesCount || 0} entries from "${result.fileName}"`
+      setMessage(savedMsg)
       setMessageType('success')
       setPages(result.parsePages || null)
       setExtractedCount(result.extractedEntriesCount || 0)
@@ -131,6 +139,29 @@ export default function StudyPage() {
           </div>
         )}
       </div>
+
+      {/* Upload type toggle */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button
+          onClick={() => setUploadType('glossary')}
+          className={`btn btn-sm ${uploadType === 'glossary' ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ flex: 1, justifyContent: 'center', borderRadius: '99px' }}
+        >
+          📚 Glossary / Terms
+        </button>
+        <button
+          onClick={() => setUploadType('scenario')}
+          className={`btn btn-sm ${uploadType === 'scenario' ? 'btn-primary' : 'btn-ghost'}`}
+          style={{ flex: 1, justifyContent: 'center', borderRadius: '99px' }}
+        >
+          🎭 Scenario Dialogues
+        </button>
+      </div>
+      {uploadType === 'scenario' && (
+        <div style={{ padding: '10px 14px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: 'var(--radius-md)', fontSize: '13px', color: 'var(--brand-800)', marginBottom: '16px' }}>
+          <strong>📌 Scenario mode:</strong> Your PDF should contain English dialogue scripts (Doctor-Patient, Nurse-Patient, etc.). The AI will extract them as practisable speaking scenarios.
+        </div>
+      )}
 
       {/* Options */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>

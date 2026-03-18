@@ -179,3 +179,112 @@ export async function extractGlossaryEntriesFromText(text: string, fileName?: st
   console.log(`AI extraction complete: ${allEntries.length} unique entries found.`)
   return { entries: allEntries, dialoguePatterns: [] }
 }
+
+// ─── Scenario PDF Extractor ─────────────────────────────────────────────────
+
+export type ScenarioTurn = {
+  speaker: string
+  source_language: string
+  source_text: string
+  target_reference_text: string | null
+}
+
+export type ExtractedScenario = {
+  title: string
+  level: string | null
+  topic: string | null
+  turns: ScenarioTurn[]
+}
+
+export async function extractScenariosFromText(text: string, fileName?: string): Promise<ExtractedScenario[]> {
+  const isGemini = !!process.env.GEMINI_API_KEY && !process.env.AI_API_KEY
+  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY
+  const endpoint = process.env.AI_ENDPOINT_URL || 'https://openrouter.ai/api/v1/chat/completions'
+  const modelName = process.env.AI_MODEL_NAME || 'google/gemini-2.5-flash:free'
+  const defaultLevel = fileName ? detectLevelFromTitle(fileName) : null
+
+  if (!apiKey) {
+    console.error('No AI API key found — cannot extract scenarios.')
+    return []
+  }
+
+  const prompt = `You are extracting interpretation scenario dialogues from a medical training PDF.
+
+The PDF contains English dialogue scripts intended to be interpreted into Amharic.
+Each scenario is a short multi-turn role-play (e.g. Doctor-Patient, Nurse-Patient, Interpreter exercises).
+
+Return a JSON array of scenario objects. Each object must have:
+- "title": Short scenario title (e.g. "Emergency Room Intake", "Patient Triage")
+- "level": Difficulty level like "L2", "L3", "L4" (or null)
+- "topic": Medical topic (e.g. "Emergency", "Cardiology", "Pediatrics") (or null)
+- "turns": Array of turn objects, each with:
+  - "speaker": Who is speaking (e.g. "Doctor", "Patient", "Nurse", "Interpreter")
+  - "source_language": Always "en" (English)
+  - "source_text": The exact English phrase spoken
+  - "target_reference_text": The ideal Amharic translation (or null if not provided)
+
+RULES:
+- Return ONLY the raw JSON array — no markdown, no fences.
+- Split text into logical scenarios wherever there is a clear topic/scene change.
+- If no Amharic translation is provided, set target_reference_text to null.
+- Minimal valid scenario has at least 2 turns.
+
+Raw text:
+${text.slice(0, 12000)}`
+
+  try {
+    let response: Response
+
+    if (isGemini) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`
+      response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, responseMimeType: 'application/json' }
+        })
+      })
+    } else {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+        })
+      })
+    }
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error('Scenario AI extraction API error:', errText)
+      return []
+    }
+
+    const json = await response.json()
+    let raw = ''
+
+    if (isGemini) {
+      raw = json.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
+    } else {
+      raw = json.choices?.[0]?.message?.content || '[]'
+    }
+
+    // Strip markdown fences if present
+    raw = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
+
+    const parsed = JSON.parse(raw)
+    const scenarios: ExtractedScenario[] = Array.isArray(parsed) ? parsed : (parsed.scenarios || [])
+    console.log(`Scenario AI extraction: found ${scenarios.length} scenario(s)`)
+    return scenarios
+  } catch (err) {
+    console.error('Scenario extraction failed:', err)
+    return []
+  }
+}

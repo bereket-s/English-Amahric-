@@ -421,8 +421,8 @@ export default function GlossaryPage() {
         </div>
 
         {/* ── Right: Practice Panel ── */}
-        <div style={{ position: 'sticky', top: 'calc(var(--nav-height) + 16px)' }}>
-          <div className="card" style={{ border: 'none', overflow: 'hidden', boxShadow: '0 8px 32px rgba(99,102,241,0.12)', background: '#fff' }}>
+        <div id="practice-panel" style={{ position: 'sticky', top: 'calc(var(--nav-height) + 16px)' }}>
+          <div className="card" style={{ border: 'none', overflow: 'hidden', boxShadow: '0 8px 32px rgba(99,102,241,0.12)', background: '#fff', maxHeight: 'calc(100vh - var(--nav-height) - 80px)', overflowY: 'auto' }}>
 
             {/* Gradient Header */}
             <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)', padding: '16px 18px 18px', marginBottom: 0, position: 'relative' }}>
@@ -576,7 +576,11 @@ export default function GlossaryPage() {
       <style>{`
         /* Desktop */
         @media (min-width: 821px) {
-          .mobile-close-btn { display: none; }
+          .mobile-close-btn { display: none !important; }
+          #practice-panel {
+            display: block !important;
+            position: sticky !important;
+          }
         }
 
         /* Mobile */
@@ -587,30 +591,29 @@ export default function GlossaryPage() {
           /* The left side (list) takes full width */
           main > div:last-of-type > div:first-child {
             width: 100%;
+            padding-bottom: 20px;
           }
-          
+
           /* The right side (practice panel) becomes a fixed bottom sheet overlay */
-          main > div:last-of-type > div:last-child {
-            display: ${practiceEntry ? 'flex' : 'none'};
-            flex-direction: column;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            top: auto;
-            max-height: 85vh;
-            overflow-y: auto;
-            z-index: 100;
-            background: #fff;
-            border-top: 1px solid var(--border-strong);
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
-            border-radius: 24px 24px 0 0;
+          #practice-panel {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            top: auto !important;
+            max-height: 85vh !important;
+            overflow-y: auto !important;
+            z-index: 100 !important;
+            background: #fff !important;
+            border-top: 1px solid var(--border-strong) !important;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.15) !important;
+            border-radius: 24px 24px 0 0 !important;
             animation: slideUp 0.3s ease-out forwards;
-            padding: 0;
+            padding: 0 !important;
           }
 
           /* Remove card constraints inside the bottom sheet */
-          main > div:last-of-type > div:last-child .card {
+          #practice-panel .card {
             max-height: none !important;
             border: none !important;
             box-shadow: none !important;
@@ -625,6 +628,22 @@ export default function GlossaryPage() {
           }
         }
       `}</style>
+
+      {/* Mobile overlay backdrop */}
+      {practiceEntry && (
+        <style>{`
+          @media (max-width: 820px) {
+            #practice-panel { display: flex !important; flex-direction: column; }
+          }
+        `}</style>
+      )}
+      {!practiceEntry && (
+        <style>{`
+          @media (max-width: 820px) {
+            #practice-panel { display: none !important; }
+          }
+        `}</style>
+      )}
     </main>
   )
 }
