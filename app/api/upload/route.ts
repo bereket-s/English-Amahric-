@@ -14,12 +14,19 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const uploadType = searchParams.get('type') || 'glossary' // 'glossary' or 'scenario'
     const formData = await request.formData()
     const file = formData.get('file') as File | null
     const level = (formData.get('level') as string | null)?.trim() || null
     const topic = (formData.get('topic') as string | null)?.trim() || null
+
+    // Read upload type from formData field (most reliable) or query param
+    let uploadType = (formData.get('uploadType') as string | null) || 'glossary'
+    try {
+      const url = new URL(request.url, 'http://localhost')
+      const typeParam = url.searchParams.get('type')
+      if (typeParam) uploadType = typeParam
+    } catch { /* ignore URL parse errors */ }
+
 
     if (!file) {
       return NextResponse.json(

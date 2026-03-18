@@ -48,6 +48,7 @@ export default function StudyPage() {
     form.append('file', selectedFile)
     form.append('level', level)
     form.append('topic', topic)
+    form.append('uploadType', uploadType)
     try {
       const res = await fetch(`/api/upload?type=${uploadType}`, { method: 'POST', body: form })
       const result = await res.json()
