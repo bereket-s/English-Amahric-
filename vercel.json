@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/random-word",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/practice-reminder",
+      "schedule": "0 */3 * * *"
+    }
+  ]
+}

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import ScoreRing from '../../components/ui/ScoreRing'
 import { BarChart2, Target, MessageSquare, Mic, Star, Flame, Trophy, RefreshCw, ChevronRight, AlertTriangle } from 'lucide-react'
 
+import PushSubscriptionToggle from '../../components/ui/PushSubscriptionToggle'
+
 type RecentTerm = {
   id: string
   english_term: string
@@ -87,6 +89,8 @@ export default function DashboardPage() {
           Refresh
         </button>
       </div>
+
+      <PushSubscriptionToggle />
 
       {loading && (
         <div>
