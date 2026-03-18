@@ -7,11 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-webpush.setVapidDetails(
-  'mailto:noreply@eng-amh-trainer.vercel.app',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:noreply@eng-amh-trainer.vercel.app',
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  )
+}
 
 // Vercel Cron Security: https://vercel.com/docs/cron-jobs#securing-cron-jobs
 export async function GET(request: Request) {
