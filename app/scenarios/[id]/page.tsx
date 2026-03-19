@@ -170,16 +170,16 @@ export default function ScenarioPlayerPage() {
     }
   }
 
-  // Auto-evaluate when blob changes in recall mode
+  // Auto-evaluate when blob changes in any mode
   useEffect(() => {
-    if (practiceMode === 'recall' && recordedBlob && matchScore === null && !isChecking) {
+    if (recordedBlob && matchScore === null && !isChecking) {
       if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current)
       autoEvalTimeoutRef.current = setTimeout(() => {
         handleTranscribeAndEvaluate()
       }, 500) // slight delay to ensure UI updates and Blob is fully ready
     }
     return () => { if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current) }
-  }, [recordedBlob, practiceMode, matchScore, isChecking])
+  }, [recordedBlob, matchScore, isChecking])
 
   const nextTurn = () => {
     setRecordedBlob(null)
