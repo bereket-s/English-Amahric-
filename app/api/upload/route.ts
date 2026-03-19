@@ -7,6 +7,8 @@ import { parseCsvFile } from '../../../src/lib/parsers/csv'
 import { parseJsonFile } from '../../../src/lib/parsers/json'
 import { extractGlossaryEntriesFromText, extractScenariosFromText } from '../../../src/lib/parsers/extractor'
 
+export const dynamic = 'force-dynamic'
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
