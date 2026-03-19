@@ -29,7 +29,19 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get all push subscriptions
+    // 1. Get a random scenario
+    const { data: scenarios, error: scenarioError } = await supabase
+      .from('scenarios')
+      .select('id, title')
+      .limit(50)
+
+    if (scenarioError || !scenarios || scenarios.length === 0) {
+      return NextResponse.json({ error: 'No scenarios found' }, { status: 500 })
+    }
+
+    const scenario = scenarios[Math.floor(Math.random() * scenarios.length)]
+
+    // 2. Get all push subscriptions
     const { data: subs, error: subError } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
@@ -38,14 +50,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No subscribers yet' })
     }
 
-    // Pick a random scenario message
+    // Pick a random introductory message
     const msg = SCENARIO_MESSAGES[Math.floor(Math.random() * SCENARIO_MESSAGES.length)]
 
     const payload = JSON.stringify({
       title: msg.title,
-      body: msg.body,
+      body: `Practice "${scenario.title}" now! - ${msg.body}`,
       tag: 'scenario-practice',
-      url: '/scenarios',
+      url: `/scenarios/${scenario.id}`,
     })
 
     const results = await Promise.allSettled(
