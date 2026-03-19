@@ -1,19 +1,30 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Mic, Square } from 'lucide-react'
 
 type RecorderProps = {
   onRecorded: (blob: Blob) => void
 }
 
-export default function Recorder({ onRecorded }: RecorderProps) {
+export type RecorderRef = {
+  startRecording: () => void
+  stopRecording: () => void
+}
+
+const Recorder = forwardRef<RecorderRef, RecorderProps>(({ onRecorded }, ref) => {
   const [isRecording, setIsRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [status, setStatus] = useState<'idle' | 'recording' | 'done'>('idle')
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    startRecording,
+    stopRecording
+  }))
 
   useEffect(() => {
     if (isRecording) {
@@ -122,10 +133,13 @@ export default function Recorder({ onRecorded }: RecorderProps) {
         </button>
       )}
 
+
       {/* Status label */}
       <span style={{ fontSize: '13px', fontWeight: 500, color: statusColor }}>
         {statusText}
       </span>
     </div>
   )
-}
+})
+
+export default Recorder

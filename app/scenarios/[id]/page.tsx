@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Layers, ChevronLeft, Mic2, Volume2, CheckCircle, ArrowRight, XCircle, Loader2, EyeOff, Ear } from 'lucide-react'
-import Recorder from '../../../components/Recorder'
+import Recorder, { RecorderRef } from '../../../components/Recorder'
 import ScoreRing from '../../../components/ui/ScoreRing'
 import confetti from 'canvas-confetti'
 import { playSound } from '../../../src/lib/audio'
@@ -61,6 +61,9 @@ export default function ScenarioPlayerPage() {
   // We track results for all turns to show a final summary
   const [turnResults, setTurnResults] = useState<Array<{ score: number; feedback: string; transcription: string }>>([])
   
+  const recorderRef = useRef<RecorderRef>(null)
+  const autoEvalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFinished = scenario && currentTurnIdx >= scenario.scenario_turns.length
 
   const handleScoreCelebration = (score: number) => {
@@ -154,9 +157,6 @@ export default function ScenarioPlayerPage() {
       const newResults = [...turnResults]
       newResults[currentTurnIdx] = { score, feedback, transcription: text }
       setTurnResults(newResults)
-
-      // Optionally we could save `user_scenario_turn_attempts` here if we wrote a backend to accept it.
-      // For MVP we just show the score on screen and proceed.
       
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unknown evaluation error')
@@ -165,11 +165,23 @@ export default function ScenarioPlayerPage() {
     }
   }
 
+  // Auto-evaluate when blob changes in recall mode
+  useEffect(() => {
+    if (practiceMode === 'recall' && recordedBlob && matchScore === null && !isChecking) {
+      if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current)
+      autoEvalTimeoutRef.current = setTimeout(() => {
+        handleTranscribeAndEvaluate()
+      }, 500) // slight delay to ensure UI updates and Blob is fully ready
+    }
+    return () => { if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current) }
+  }, [recordedBlob, practiceMode, matchScore, isChecking])
+
   const nextTurn = () => {
     setRecordedBlob(null)
     setTranscription(''); setAiFeedback(''); setMatchScore(null); setMatchStatus('')
     setIsTextHidden(false)
     setIsPlayingAudio(false)
+    if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
     setCurrentTurnIdx(idx => idx + 1)
   }
 
@@ -266,18 +278,39 @@ export default function ScenarioPlayerPage() {
             <button 
               onClick={() => {
                 if (isPlayingAudio) return;
+                setRecordedBlob(null);
+                setTranscription(''); setAiFeedback(''); setMatchScore(null); setMatchStatus('');
                 setIsTextHidden(false);
+                
                 speakEnglish(
                   currentTurn?.source_text || '', 
-                  0.75, // Speak slower
+                  0.8, // Speak slower
                   () => setIsPlayingAudio(true),
-                  () => { setIsPlayingAudio(false); setIsTextHidden(true); }
+                  () => { 
+                    setIsPlayingAudio(false); 
+                    setIsTextHidden(true); 
+                    
+                    // Auto-start recording
+                    if (recorderRef.current) {
+                      recorderRef.current.startRecording();
+                      
+                      // Auto-stop after expected speaking time
+                      const textLen = currentTurn?.source_text?.length || 0;
+                      // Base 3s + ~90ms per character
+                      const targetDurationMs = Math.max(3000, textLen * 90);
+                      
+                      if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
+                      recordingTimeoutRef.current = setTimeout(() => {
+                        if (recorderRef.current) recorderRef.current.stopRecording()
+                      }, targetDurationMs)
+                    }
+                  }
                 )
               }} 
               className="btn btn-primary btn-sm"
               disabled={isPlayingAudio}
             >
-              {isPlayingAudio ? <><Volume2 className="animate-pulse" size={16} /> Listening...</> : <><Ear size={16} /> Listen & Memorize</>}
+              {isPlayingAudio ? <><Volume2 className="animate-pulse" size={16} /> Listening...</> : <><Ear size={16} /> Listen & Memo</>}
             </button>
           )}
         </div>
@@ -303,7 +336,7 @@ export default function ScenarioPlayerPage() {
 
         {!recordedAudioUrl ? (
           <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-            <Recorder onRecorded={setRecordedBlob} />
+            <Recorder ref={recorderRef} onRecorded={setRecordedBlob} />
           </div>
         ) : (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
