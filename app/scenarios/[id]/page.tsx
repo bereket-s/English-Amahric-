@@ -129,6 +129,11 @@ export default function ScenarioPlayerPage() {
       // We will parse the audio just like glossary interpretation
       const form = new FormData()
       form.append('file', new File([recordedBlob], 'recording.webm', { type: 'audio/webm' }))
+      
+      if (practiceMode === 'recall') {
+        form.append('expectedLanguage', 'en')
+      }
+      
       const transRes = await fetch('/api/transcribe', { method: 'POST', body: form })
       const transResult = await transRes.json()
       if (!transRes.ok) throw new Error(transResult.error || 'Transcription failed.')
