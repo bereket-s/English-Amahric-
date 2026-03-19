@@ -15,7 +15,13 @@ if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   )
 }
 
-// Vercel Cron Security: https://vercel.com/docs/cron-jobs#securing-cron-jobs
+const SCENARIO_MESSAGES = [
+  { title: '\u{1F3AC} Scenario Time!', body: 'Take 5 minutes to practice a medical interpretation scenario.' },
+  { title: '\u{1F5E3}\u{FE0F} Ready to speak?', body: 'Try the new exact recall practice mode in scenarios.' },
+  { title: '\u{1F4C8} Boost your skills', body: 'A quick scenario practice can improve your fluency significantly.' },
+  { title: '\u{1F3AE} New scenarios waiting!', body: 'Jump into a scenario and test your interpretation accuracy.' },
+]
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -23,46 +29,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Get a random higher-level glossary term
-    // We try to fetch terms that have a level first, then fall back to any term
-    // This assumes levels like 'Advanced', 'High', etc., sort above null
-    let { data: terms, error: termError } = await supabase
-      .from('study_entries')
-      .select('id, english_term, amharic_term, level')
-      .not('amharic_term', 'is', null)
-      .not('amharic_term', 'eq', '')
-      .not('level', 'is', null) // Try to get terms with a defined level first
-      .limit(50)
-
-    // Fallback if no leveled terms exist
-    if (termError || !terms || terms.length === 0) {
-      const fallbackResult = await supabase
-        .from('study_entries')
-        .select('id, english_term, amharic_term, level')
-        .not('amharic_term', 'is', null)
-        .not('amharic_term', 'eq', '')
-        .limit(50)
-        
-      terms = fallbackResult.data
-      termError = fallbackResult.error
-    }
-
-    if (termError || !terms || terms.length === 0) {
-      return NextResponse.json({ error: 'No terms found' }, { status: 500 })
-    }
-
-    // Sort by level descending (very rudimentary way to prioritize "Higher" over "Lower" lexically if possible)
-    const sortedTerms = terms.sort((a, b) => {
-      if (!a.level) return 1;
-      if (!b.level) return -1;
-      return b.level.localeCompare(a.level);
-    })
-
-    // Take from the top 10 hardest terms to ensure variety
-    const poolSize = Math.min(10, sortedTerms.length)
-    const term = sortedTerms[Math.floor(Math.random() * poolSize)]
-
-    // 2. Get all push subscriptions
+    // Get all push subscriptions
     const { data: subs, error: subError } = await supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth')
@@ -71,12 +38,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No subscribers yet' })
     }
 
-    // 3. Send notification to all subscribers
+    // Pick a random scenario message
+    const msg = SCENARIO_MESSAGES[Math.floor(Math.random() * SCENARIO_MESSAGES.length)]
+
     const payload = JSON.stringify({
-      title: `📚 Word of the moment`,
-      body: `${term.english_term} → ${term.amharic_term}`,
-      tag: 'random-word',
-      url: `/glossary?term=${encodeURIComponent(term.english_term)}`,
+      title: msg.title,
+      body: msg.body,
+      tag: 'scenario-practice',
+      url: '/scenarios',
     })
 
     const results = await Promise.allSettled(
@@ -91,7 +60,7 @@ export async function GET(request: Request) {
       )
     )
 
-    // Clean up expired/invalid subscriptions (410 Gone)
+    // Clean up expired/invalid subscriptions
     const expiredEndpoints: string[] = []
     subs.forEach((sub, i) => {
       const result = results[i]
@@ -110,7 +79,7 @@ export async function GET(request: Request) {
     const sent = results.filter(r => r.status === 'fulfilled').length
     return NextResponse.json({ success: true, sent, expired: expiredEndpoints.length })
   } catch (error) {
-    console.error('Cron random-word error:', error)
+    console.error('Cron scenario-practice error:', error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

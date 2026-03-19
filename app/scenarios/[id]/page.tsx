@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Layers, ChevronLeft, Mic2, Volume2, CheckCircle, ArrowRight, XCircle, Loader2 } from 'lucide-react'
+import { Layers, ChevronLeft, Mic2, Volume2, CheckCircle, ArrowRight, XCircle, Loader2, EyeOff, Ear } from 'lucide-react'
 import Recorder from '../../../components/Recorder'
 import ScoreRing from '../../../components/ui/ScoreRing'
 import confetti from 'canvas-confetti'
@@ -54,6 +54,10 @@ export default function ScenarioPlayerPage() {
   const [matchScore, setMatchScore] = useState<number | null>(null)
   const [matchStatus, setMatchStatus] = useState('')
 
+  const [practiceMode, setPracticeMode] = useState<'interpretation' | 'recall'>('interpretation')
+  const [isTextHidden, setIsTextHidden] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+
   // We track results for all turns to show a final summary
   const [turnResults, setTurnResults] = useState<Array<{ score: number; feedback: string; transcription: string }>>([])
   
@@ -99,12 +103,15 @@ export default function ScenarioPlayerPage() {
   // Cleanup blob urls
   useEffect(() => () => { if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl) }, [recordedAudioUrl])
 
-  const speakEnglish = (text: string) => {
+  const speakEnglish = (text: string, rate: number = 1.0, onStart?: () => void, onEnd?: () => void) => {
     if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) return
     const synth = window.speechSynthesis
     synth.cancel()
     const utt = new SpeechSynthesisUtterance(text)
     utt.lang = 'en-US'
+    utt.rate = rate
+    if (onStart) utt.onstart = onStart
+    if (onEnd) utt.onend = onEnd
     synth.speak(utt)
   }
 
@@ -125,12 +132,16 @@ export default function ScenarioPlayerPage() {
       const text = transResult.text || ''
       setTranscription(text)
 
-      // 2. Evaluate using Interpretation Endpoint
-      // Expected logic: if source is English, target is Amharic.
-      const evalRes = await fetch('/api/evaluate-interpretation', {
+      // 2. Evaluate using Interpretation Endpoint or Recall Endpoint
+      const endpoint = practiceMode === 'recall' ? '/api/evaluate-recall' : '/api/evaluate-interpretation'
+      const payload = practiceMode === 'recall' 
+        ? { sourceText: currentTurn.source_text, spokenText: text }
+        : { englishText: currentTurn.source_text, amharicText: text }
+
+      const evalRes = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ englishText: currentTurn.source_text, amharicText: text })
+        body: JSON.stringify(payload)
       })
       const evalResult = await evalRes.json()
       if (!evalRes.ok) throw new Error(evalResult.error || 'Evaluation failed')
@@ -157,6 +168,8 @@ export default function ScenarioPlayerPage() {
   const nextTurn = () => {
     setRecordedBlob(null)
     setTranscription(''); setAiFeedback(''); setMatchScore(null); setMatchStatus('')
+    setIsTextHidden(false)
+    setIsPlayingAudio(false)
     setCurrentTurnIdx(idx => idx + 1)
   }
 
@@ -182,7 +195,7 @@ export default function ScenarioPlayerPage() {
           <p style={{ color: 'var(--text-secondary)' }}>You've finished practicing "{scenario.title}"</p>
           
           <div style={{ margin: '30px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Average Interpretation Score</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Average {practiceMode === 'interpretation' ? 'Interpretation' : 'Recall'} Score</span>
             <ScoreRing score={avgScore} size={100} strokeWidth={8} />
           </div>
 
@@ -216,27 +229,76 @@ export default function ScenarioPlayerPage() {
       </div>
 
       {/* Progress bar */}
-      <div style={{ width: '100%', height: '6px', background: 'var(--surface-alt)', borderRadius: '3px', overflow: 'hidden', marginBottom: '32px' }}>
+      <div style={{ width: '100%', height: '6px', background: 'var(--surface-alt)', borderRadius: '3px', overflow: 'hidden', marginBottom: '24px' }}>
         <div style={{ height: '100%', background: 'var(--brand-500)', width: `${progressPercent}%`, transition: 'width 0.3s ease' }} />
+      </div>
+
+      {/* Mode Toggle */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+        <div style={{ background: 'var(--surface-alt)', padding: '4px', borderRadius: 'var(--radius-full)', display: 'inline-flex' }}>
+          <button 
+            onClick={() => { setPracticeMode('interpretation'); setIsTextHidden(false); }}
+            className={`btn btn-sm ${practiceMode === 'interpretation' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ borderRadius: 'var(--radius-full)' }}
+          >
+            Interpretation
+          </button>
+          <button 
+            onClick={() => setPracticeMode('recall')}
+            className={`btn btn-sm ${practiceMode === 'recall' ? 'btn-primary' : 'btn-ghost'}`}
+            style={{ borderRadius: 'var(--radius-full)' }}
+          >
+            Exact Recall
+          </button>
+        </div>
       </div>
 
       {/* Source Turn Display */}
       <div className="card animate-in" style={{ marginBottom: '24px', borderLeft: '4px solid var(--brand-400)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span className="badge badge-brand">{currentTurn?.speaker}</span>
-          <button onClick={() => speakEnglish(currentTurn?.source_text || '')} className="btn btn-ghost btn-sm">
-            <Volume2 size={16} /> Play Audio
-          </button>
+          
+          {practiceMode === 'interpretation' ? (
+            <button onClick={() => speakEnglish(currentTurn?.source_text || '')} className="btn btn-ghost btn-sm">
+              <Volume2 size={16} /> Play Audio
+            </button>
+          ) : (
+            <button 
+              onClick={() => {
+                if (isPlayingAudio) return;
+                setIsTextHidden(false);
+                speakEnglish(
+                  currentTurn?.source_text || '', 
+                  0.75, // Speak slower
+                  () => setIsPlayingAudio(true),
+                  () => { setIsPlayingAudio(false); setIsTextHidden(true); }
+                )
+              }} 
+              className="btn btn-primary btn-sm"
+              disabled={isPlayingAudio}
+            >
+              {isPlayingAudio ? <><Volume2 className="animate-pulse" size={16} /> Listening...</> : <><Ear size={16} /> Listen & Memorize</>}
+            </button>
+          )}
         </div>
-        <p style={{ fontSize: '18px', fontWeight: 500, lineHeight: 1.5, color: 'var(--text-primary)' }}>
-          {currentTurn?.source_text}
-        </p>
+        
+        {practiceMode === 'recall' && isTextHidden ? (
+          <div style={{ padding: '20px', textAlign: 'center', background: 'var(--surface-alt)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border)' }}>
+            <EyeOff size={24} color="var(--text-muted)" style={{ margin: '0 auto 8px' }} />
+            <p style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Text is hidden for recall practice.</p>
+            <button onClick={() => setIsTextHidden(false)} className="btn btn-ghost btn-sm" style={{ marginTop: '8px' }}>Show Text</button>
+          </div>
+        ) : (
+          <p style={{ fontSize: '18px', fontWeight: 500, lineHeight: 1.5, color: 'var(--text-primary)' }}>
+            {currentTurn?.source_text}
+          </p>
+        )}
       </div>
 
       {/* Target Translation / Practice area */}
       <div className="card" style={{ background: 'var(--surface-alt)', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '20px' }}>
-          Your Interpretation
+          {practiceMode === 'interpretation' ? 'Your Interpretation' : 'Your Recall'}
         </h3>
 
         {!recordedAudioUrl ? (
@@ -253,7 +315,7 @@ export default function ScenarioPlayerPage() {
                   <XCircle size={16} /> Retake
                 </button>
                 <button onClick={handleTranscribeAndEvaluate} className="btn btn-primary" disabled={isChecking}>
-                  {isChecking ? <><Loader2 size={16} className="animate-spin" /> Evaluating…</> : <><Mic2 size={16} /> Score My Interpretation</>}
+                  {isChecking ? <><Loader2 size={16} className="animate-spin" /> Evaluating…</> : <><Mic2 size={16} /> {practiceMode === 'interpretation' ? 'Score My Interpretation' : 'Score My Recall'}</>}
                 </button>
               </div>
             ) : (
