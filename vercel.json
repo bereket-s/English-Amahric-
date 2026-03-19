@@ -5,12 +5,9 @@
       "schedule": "0 12 * * *"
     },
     {
-      "path": "/api/cron/practice-reminder",
-      "schedule": "0 18 * * *"
-    },
-    {
       "path": "/api/cron/scenario-practice",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
+
