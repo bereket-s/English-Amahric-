@@ -4,10 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+
 
 function toDateKey(dateValue: string) {
   return new Date(dateValue).toISOString().slice(0, 10)
@@ -39,6 +36,10 @@ function calculateStreak(dates: string[]) {
 }
 
 export async function GET() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
   try {
     const { data: attempts, error } = await supabase
       .from('user_term_attempts')
