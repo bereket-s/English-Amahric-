@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Recorder from '../../components/Recorder'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import Recorder, { RecorderRef } from '../../components/Recorder'
 import ScoreRing from '../../components/ui/ScoreRing'
-import { Search, Volume2, Mic2, ChevronRight, BookOpen, X, SlidersHorizontal } from 'lucide-react'
+import { Search, Volume2, Mic2, ChevronRight, BookOpen, X, SlidersHorizontal, Loader2 } from 'lucide-react'
 import confetti from 'canvas-confetti'
 import { playSound } from '../../src/lib/audio'
 
@@ -105,6 +105,11 @@ export default function GlossaryPage() {
   const [extraWords, setExtraWords]       = useState<string[]>([])
   const [aiFeedback, setAiFeedback]       = useState('')
   const [isChecking, setIsChecking]       = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+
+  const recorderRef = useRef<RecorderRef>(null)
+  const autoEvalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const recordingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const recordedAudioUrl = useMemo(() => {
     if (!recordedBlob) return ''
@@ -153,17 +158,22 @@ export default function GlossaryPage() {
 
   useEffect(() => () => { if (recordedAudioUrl) URL.revokeObjectURL(recordedAudioUrl) }, [recordedAudioUrl])
 
-  const speakEnglish = (text: string) => {
+  const speakEnglish = (text: string, onStart?: () => void, onEnd?: () => void) => {
     if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) { alert('Speech not supported.'); return }
     const synth = window.speechSynthesis
     const voices = synth.getVoices()
     if (!voices.length) { alert('Voices not ready yet. Try again.'); return }
     synth.cancel()
     const utt = new SpeechSynthesisUtterance(text)
-    utt.lang = 'en-US'; utt.rate = 0.9; utt.pitch = 1; utt.volume = 1
+    utt.lang = 'en-US'; utt.rate = 0.8; utt.pitch = 1; utt.volume = 1
     const voice = voices.find(v => v.lang.toLowerCase().startsWith('en-us')) || voices.find(v => v.lang.toLowerCase().startsWith('en')) || null
     if (voice) utt.voice = voice
-    utt.onerror = () => alert('Speech playback failed.')
+    if (onStart) utt.onstart = onStart
+    if (onEnd) utt.onend = onEnd
+    utt.onerror = () => {
+      alert('Speech playback failed.')
+      if (onEnd) onEnd()
+    }
     synth.speak(utt)
   }
 
@@ -175,6 +185,9 @@ export default function GlossaryPage() {
   }
 
   const startPractice = (entry: GlossaryEntry, mode: 'term' | 'sentence' | 'interpret-term' | 'interpret-sentence') => {
+    if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
+    if (recorderRef.current && isPlayingAudio) recorderRef.current.stopRecording()
+    setIsPlayingAudio(false)
     setPracticeEntry(entry); setPracticeMode(mode); resetPracticeState()
   }
 
@@ -258,6 +271,17 @@ export default function GlossaryPage() {
       setTranscriptionStatus(err instanceof Error ? err.message : 'Unknown transcription error')
     } finally { setIsChecking(false) }
   }
+
+  // Auto-evaluate when blob changes
+  useEffect(() => {
+    if (recordedBlob && matchScore === null && !isChecking) {
+      if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current)
+      autoEvalTimeoutRef.current = setTimeout(() => {
+        transcribeRecording()
+      }, 500)
+    }
+    return () => { if (autoEvalTimeoutRef.current) clearTimeout(autoEvalTimeoutRef.current) }
+  }, [recordedBlob, matchScore, isChecking])
 
   const expectedText = (practiceMode === 'term' || practiceMode === 'interpret-term') ? practiceEntry?.english_term || '' : practiceEntry?.english_sentence || ''
   const practiceLabel = practiceMode === 'term' ? 'Term' : practiceMode === 'sentence' ? 'Sentence' : practiceMode === 'interpret-term' ? 'Term Interpretation' : 'Sentence Interpretation'
@@ -479,36 +503,58 @@ export default function GlossaryPage() {
                 <>
                   {/* Hear button */}
                   <button
-                    onClick={() => speakEnglish(expectedText)}
+                    onClick={() => {
+                      if (isPlayingAudio) return;
+                      setRecordedBlob(null);
+                      setTranscription(''); setTranscriptionStatus(''); setMatchScore(null);
+                      setMatchStatus(''); setSaveStatus(''); setMatchedWords([]); setMissingWords([]); setExtraWords([]);
+                      setAiFeedback('');
+                      
+                      const speechText = practiceMode.startsWith('interpret') ? (practiceEntry?.amharic_term || '') : expectedText;
+                      
+                      // For Amharic interpretation, if speech synth doesn't support Amharic, we just skip TTS or try our best.
+                      // Since we only have English TTS setup reliably, if it's interpret mode we might not want to auto-read Amharic reliably.
+                      // Let's just do it for English modes, or read the English source.
+                      // Wait, interpretation means translating English -> Amharic. So we should read the English source!
+                      const textToRead = expectedText;
+                      
+                      speakEnglish(
+                        textToRead,
+                        () => setIsPlayingAudio(true),
+                        () => {
+                          setIsPlayingAudio(false);
+                          if (recorderRef.current) {
+                            recorderRef.current.startRecording();
+                            const targetMs = Math.max(3000, textToRead.length * 90);
+                            if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
+                            recordingTimeoutRef.current = setTimeout(() => {
+                              if (recorderRef.current) recorderRef.current.stopRecording()
+                            }, targetMs)
+                          }
+                        }
+                      )
+                    }}
+                    disabled={isPlayingAudio}
                     className="btn btn-secondary btn-sm"
-                    style={{ width: '100%', justifyContent: 'center', marginBottom: '14px', borderRadius: '12px', fontWeight: 600, gap: '8px', border: '1.5px solid var(--border-strong)' }}
+                    style={{ width: '100%', justifyContent: 'center', marginBottom: '14px', borderRadius: '12px', fontWeight: 600, gap: '8px', border: '1.5px solid var(--border-strong)', background: isPlayingAudio ? 'var(--brand-100)' : undefined }}
                   >
-                    <Volume2 size={15} /> Hear Pronunciation
+                    {isPlayingAudio ? <><Volume2 className="animate-pulse" size={15} /> Listening...</> : <><Volume2 size={15} /> Listen & Record</>}
                   </button>
 
                   {/* Recorder */}
                   <div style={{ background: 'linear-gradient(135deg, #f8f7ff, #fdf4ff)', border: '1.5px solid #e9d5ff', borderRadius: '16px', padding: '16px', display: 'flex', justifyContent: 'center', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <p style={{ fontSize: '12px', fontWeight: 600, color: '#7c3aed', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🎙 Record your voice</p>
                     <Recorder
+                      ref={recorderRef}
                       onRecorded={blob => {
                         setRecordedBlob(blob)
-                        setTranscription(''); setTranscriptionStatus(''); setMatchScore(null)
-                        setMatchStatus(''); setSaveStatus(''); setMatchedWords([]); setMissingWords([]); setExtraWords([])
                       }}
                     />
                   </div>
 
-                  {recordedAudioUrl && (
-                    <div style={{ marginTop: '14px' }}>
-                      <audio controls src={recordedAudioUrl} style={{ width: '100%', height: '36px', borderRadius: '8px' }} />
-                      <button
-                        onClick={transcribeRecording}
-                        disabled={isChecking}
-                        className="btn btn-primary"
-                        style={{ width: '100%', justifyContent: 'center', marginTop: '10px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', padding: '12px', background: isChecking ? 'var(--brand-300)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}
-                      >
-                        {isChecking ? '⏳ Checking…' : '🔍 Check My Pronunciation'}
-                      </button>
+                  {recordedAudioUrl && !isChecking && matchScore === null && (
+                    <div style={{ marginTop: '14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      <Loader2 size={16} className="animate-spin" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '6px' }} /> Auto-evaluating...
                     </div>
                   )}
 
