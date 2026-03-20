@@ -150,7 +150,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <title>EngAmh Trainer 🇪🇹</title>
         <meta name="description" content="Practice English and Amharic vocabulary, pronunciation, and sentences." />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="theme-color" content="#6366f1" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body>
         <Nav />

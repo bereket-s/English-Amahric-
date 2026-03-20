@@ -67,6 +67,22 @@ export default function DashboardPage() {
       const result = await res.json()
       if (!res.ok) { setError(result.error || 'Failed to load dashboard.'); setData(null); return }
       setData(result)
+      
+      // Update PWA Home Screen Badge
+      try {
+        if ('setAppBadge' in navigator) {
+          const badgeValue = result.summary.streak > 0 ? result.summary.streak : result.summary.totalAttempts
+          if (badgeValue > 0) {
+            // @ts-ignore
+            navigator.setAppBadge(badgeValue).catch(console.error)
+          } else {
+            // @ts-ignore
+            navigator.clearAppBadge().catch(console.error)
+          }
+        }
+      } catch (e) {
+        console.error('App Badge API error:', e)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error'); setData(null)
     } finally { setLoading(false) }
