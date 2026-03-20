@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       .limit(50)
 
     if (scenarioError || !scenarios || scenarios.length === 0) {
-      return NextResponse.json({ error: 'No scenarios found' }, { status: 500 })
+      return NextResponse.json({ message: 'No scenarios found to send practice for' }, { status: 200 })
     }
 
     const scenario = scenarios[Math.floor(Math.random() * scenarios.length)]

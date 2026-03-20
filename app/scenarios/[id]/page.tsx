@@ -275,49 +275,47 @@ export default function ScenarioPlayerPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <span className="badge badge-brand">{currentTurn?.speaker}</span>
           
-          {practiceMode === 'interpretation' ? (
-            <button onClick={() => speakEnglish(currentTurn?.source_text || '')} className="btn btn-ghost btn-sm">
-              <Volume2 size={16} /> Play Audio
-            </button>
-          ) : (
-            <button 
-              onClick={() => {
-                if (isPlayingAudio) return;
-                setRecordedBlob(null);
-                setTranscription(''); setAiFeedback(''); setMatchScore(null); setMatchStatus('');
-                setIsTextHidden(false);
-                
-                speakEnglish(
-                  currentTurn?.source_text || '', 
-                  0.8, // Speak slower
-                  () => setIsPlayingAudio(true),
-                  () => { 
-                    setIsPlayingAudio(false); 
-                    setIsTextHidden(true); 
+          <button 
+            onClick={() => {
+              if (isPlayingAudio) return;
+              setRecordedBlob(null);
+              setTranscription(''); setAiFeedback(''); setMatchScore(null); setMatchStatus('');
+              setIsTextHidden(false);
+              
+              speakEnglish(
+                currentTurn?.source_text || '', 
+                practiceMode === 'recall' ? 0.8 : 1.0, 
+                () => setIsPlayingAudio(true),
+                () => { 
+                  setIsPlayingAudio(false); 
+                  if (practiceMode === 'recall') setIsTextHidden(true); 
+                  
+                  // Auto-start recording
+                  if (recorderRef.current) {
+                    recorderRef.current.startRecording();
                     
-                    // Auto-start recording
-                    if (recorderRef.current) {
-                      recorderRef.current.startRecording();
-                      
-                      // Auto-stop after expected speaking time
-                      const textLen = currentTurn?.source_text?.length || 0;
-                      // Base 3s + ~90ms per character
-                      const targetDurationMs = Math.max(3000, textLen * 90);
-                      
-                      if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
-                      recordingTimeoutRef.current = setTimeout(() => {
-                        if (recorderRef.current) recorderRef.current.stopRecording()
-                      }, targetDurationMs)
-                    }
+                    // Auto-stop after expected speaking time
+                    const textLen = currentTurn?.source_text?.length || 0;
+                    const isInterpret = practiceMode === 'interpretation';
+                    // Interpret takes longer (listening, thinking, translating, speaking) -> ~150ms/char, Base 4s
+                    // Recall is faster -> ~80ms/char, Base 3s
+                    const targetDurationMs = isInterpret 
+                      ? Math.max(4000, textLen * 150)
+                      : Math.max(3000, textLen * 80);
+                    
+                    if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
+                    recordingTimeoutRef.current = setTimeout(() => {
+                      if (recorderRef.current) recorderRef.current.stopRecording()
+                    }, targetDurationMs)
                   }
-                )
-              }} 
-              className="btn btn-primary btn-sm"
-              disabled={isPlayingAudio}
-            >
-              {isPlayingAudio ? <><Volume2 className="animate-pulse" size={16} /> Listening...</> : <><Ear size={16} /> Listen & Memo</>}
-            </button>
-          )}
+                }
+              )
+            }} 
+            className="btn btn-primary btn-sm"
+            disabled={isPlayingAudio}
+          >
+            {isPlayingAudio ? <><Volume2 className="animate-pulse" size={16} /> Listening...</> : <><Ear size={16} /> Listen & Practice</>}
+          </button>
         </div>
         
         {practiceMode === 'recall' && isTextHidden ? (

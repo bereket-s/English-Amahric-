@@ -525,11 +525,15 @@ export default function GlossaryPage() {
                           setIsPlayingAudio(false);
                           if (recorderRef.current) {
                             recorderRef.current.startRecording();
-                            const targetMs = Math.max(3000, textToRead.length * 90);
+                            const isInterpret = practiceMode.startsWith('interpret');
+                            const targetDurationMs = isInterpret 
+                              ? Math.max(4000, textToRead.length * 150)
+                              : Math.max(3000, textToRead.length * 80);
+                            
                             if (recordingTimeoutRef.current) clearTimeout(recordingTimeoutRef.current)
                             recordingTimeoutRef.current = setTimeout(() => {
                               if (recorderRef.current) recorderRef.current.stopRecording()
-                            }, targetMs)
+                            }, targetDurationMs)
                           }
                         }
                       )
