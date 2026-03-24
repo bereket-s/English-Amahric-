@@ -161,32 +161,33 @@ export default function HomePage() {
       </section>
 
       {/* How it works strip */}
-      <section style={{ marginBottom: '56px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: '0', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <section style={{ marginBottom: '64px', padding: '32px 24px', background: 'var(--surface-alt)', borderRadius: 'var(--radius-xl)' }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+          gap: '32px 16px', 
+          textAlign: 'center' 
+        }}>
           {[
-            { step: '1', label: 'Upload a document' },
-            { step: '2', label: 'Browse & find a term' },
-            { step: '3', label: 'Record your voice' },
-            { step: '4', label: 'Get AI feedback' },
-          ].map(({ step, label }, i, arr) => (
-            <div key={step} style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
-              <div style={{ textAlign: 'center', padding: '0 16px' }}>
-                <div style={{
-                  width: '36px', height: '36px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--brand-500), var(--brand-700))',
-                  color: '#fff', fontWeight: 700, fontSize: '15px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  margin: '0 auto 8px',
-                  boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
-                }}>
-                  {step}
-                </div>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+            { step: '1', label: 'Upload a document', icon: '📄' },
+            { step: '2', label: 'Browse & find a term', icon: '🔍' },
+            { step: '3', label: 'Record your voice', icon: '🎤' },
+            { step: '4', label: 'Get AI feedback', icon: '✨' },
+          ].map(({ step, label, icon }) => (
+            <div key={step} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{
+                width: '48px', height: '48px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, var(--brand-500), var(--brand-700))',
+                color: '#fff', fontWeight: 800, fontSize: '18px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: '12px',
+                boxShadow: '0 8px 16px -4px rgba(99,102,241,0.4)',
+              }}>
+                {step}
               </div>
-              {i < arr.length - 1 && (
-                <div style={{ width: '32px', height: '2px', background: 'var(--border-strong)', flexShrink: 0 }} />
-              )}
+              <div style={{ fontSize: '20px', marginBottom: '8px' }}>{icon}</div>
+              <strong style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3 }}>{label}</strong>
             </div>
           ))}
         </div>
