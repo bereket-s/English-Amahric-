@@ -4,18 +4,6 @@ import webpush from 'web-push'
 
 export const dynamic = 'force-dynamic'
 
-
-
-if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import webpush from 'web-push'
-
-export const dynamic = 'force-dynamic'
-
-
-
 if (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
     'mailto:noreply@eng-amh-trainer.vercel.app',
@@ -29,15 +17,15 @@ export async function GET(request: Request) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-  
+  )
+
   const authHeader = request.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    // 1. Get a completely random word from the database to prevent repetitions
+    // 1. Fetch ALL words so random pick is truly random (no repeats from small pool)
     const { data: terms, error: termError } = await supabase
       .from('study_entries')
       .select('id, english_term, amharic_term')
@@ -48,6 +36,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'No terms found' }, { status: 500 })
     }
 
+    // Pick a completely random term — Supabase's order is non-deterministic so this
+    // will rarely repeat the same word across cron invocations.
     const term = terms[Math.floor(Math.random() * terms.length)]
 
     // 2. Get all push subscriptions
@@ -59,9 +49,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: 'No subscribers yet' })
     }
 
-    // 3. Send notification to all subscribers
+    // 3. Send notification
     const payload = JSON.stringify({
-      title: `📚 Word of the moment`,
+      title: '📚 Word of the moment',
       body: `${term.english_term} → ${term.amharic_term}`,
       tag: 'random-word',
       url: `/glossary?term=${encodeURIComponent(term.english_term)}`,
@@ -70,10 +60,7 @@ export async function GET(request: Request) {
     const results = await Promise.allSettled(
       subs.map(sub =>
         webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth },
-          },
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           payload
         )
       )
@@ -84,7 +71,7 @@ export async function GET(request: Request) {
     subs.forEach((sub, i) => {
       const result = results[i]
       if (result.status === 'rejected') {
-        const err = result.reason
+        const err = result.reason as { statusCode?: number }
         if (err?.statusCode === 410 || err?.statusCode === 404) {
           expiredEndpoints.push(sub.endpoint)
         }
