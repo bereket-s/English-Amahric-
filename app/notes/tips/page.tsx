@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Lightbulb, CheckCircle2, XCircle, ChevronRight, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
-import { PRACTICE_EXERCISES } from '../../../../src/lib/scenarios'
+import { PRACTICE_EXERCISES } from '../../../src/lib/scenarios'
 
 const TIPS = [
   { icon: '→', title: 'Use symbols for speed', desc: '→ leads to · ↑↓ increase/decrease · = means · w/ with · w/o without · @ at · # number · & and · $ amount' },

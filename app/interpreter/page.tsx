@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Headphones, Play, Pause, Square, SkipForward, Clock, Settings, Mic, Activity, CheckCircle2, ChevronRight } from 'lucide-react'
+import { Headphones, Play, Pause, Square, SkipForward, Clock, Settings, Mic, Activity, CheckCircle2, ChevronRight, RotateCcw } from 'lucide-react'
 import { PRACTICE_EXERCISES, Scenario } from '../../src/lib/scenarios'
 
 type Mode = 'consecutive' | 'shadowing'
@@ -243,7 +243,7 @@ export default function InterpreterSimPage() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#065f46', fontWeight: 800, fontSize: 18, marginBottom: 8 }}>
                           <Mic size={20} /> Your Turn to Interpret
                         </div>
-                        <div style={{ fontSize: 13, color: '#047857', fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>
+                        <div style={{ color: '#047857', fontFamily: 'monospace', fontSize: 16, fontWeight: 700 }}>
                           ⏱ {Math.floor(pauseTime / 60)}:{String(pauseTime % 60).padStart(2, '0')}
                         </div>
                       </div>
