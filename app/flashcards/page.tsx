@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation } from 'framer-motion'
-import { Layers, RotateCcw, ChevronRight, ChevronLeft, Star, Zap, Trophy, BookOpen, Image as ImageIcon } from 'lucide-react'
+import { Layers, RotateCcw, ChevronRight, ChevronLeft, Star, Zap, Trophy, BookOpen, Image as ImageIcon, Volume2 } from 'lucide-react'
 import { useWikiImage } from '../../src/lib/useWikiImage'
 
 type Glossary = { id: string; english_term: string; amharic_term: string }
@@ -52,7 +52,20 @@ export default function FlashcardsPage() {
   const card = deck[index]
   const { imageUrl, loading: imageLoading } = useWikiImage(card?.english_term || '')
 
-  const handleClick = () => setFlipped(f => !f)
+  const handleClick = (e?: React.MouseEvent) => {
+    // If the click was on the volume button, do not flip the card
+    if ((e?.target as Element)?.closest('.volume-btn')) return
+    
+    setFlipped(f => !f)
+  }
+
+  const playAudio = (text: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const utt = new SpeechSynthesisUtterance(text)
+    utt.lang = 'en-US'
+    utt.rate = 0.9
+    window.speechSynthesis.speak(utt)
+  }
 
   const next = async (outcome: 'know' | 'learning') => {
     if (!deck[index]) return
@@ -289,8 +302,19 @@ export default function FlashcardsPage() {
               <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: flipped ? 'rgba(255,255,255,0.7)' : 'var(--brand-600)', marginBottom: 12 }}>
                 {flipped ? '🇪🇹 Amharic' : '🇬🇧 English'}
               </div>
-              <div style={{ fontSize: 'clamp(28px, 6vw, 40px)', fontWeight: 800, color: flipped ? '#fff' : 'var(--text-primary)', lineHeight: 1.25, padding: '0 10px' }}>
-                {flipped ? card.amharic_term : card.english_term}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ fontSize: 'clamp(28px, 6vw, 40px)', fontWeight: 800, color: flipped ? '#fff' : 'var(--text-primary)', lineHeight: 1.25, padding: '0 10px' }}>
+                  {flipped ? card.amharic_term : card.english_term}
+                </div>
+                {!flipped && (
+                  <button 
+                    className="volume-btn btn-ghost" 
+                    onClick={(e) => playAudio(card.english_term, e)}
+                    style={{ padding: 8, borderRadius: '50%', color: 'var(--brand-500)', flexShrink: 0, background: 'var(--brand-50)' }}
+                  >
+                    <Volume2 size={24} />
+                  </button>
+                )}
               </div>
               <div style={{ marginTop: 'auto', paddingTop: 24, fontSize: 13, fontWeight: 600, color: flipped ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)' }}>
                 {flipped ? 'Tap to flip back' : 'Tap to reveal Amharic ▾'}
