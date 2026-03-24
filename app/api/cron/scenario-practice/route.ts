@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
+import { PRACTICE_EXERCISES } from '../../../../src/lib/scenarios'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,13 +33,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Get a random scenario
-    const { data: scenarios, error: scenarioError } = await supabase
-      .from('scenarios')
-      .select('id, title')
-      .limit(50)
-
-    if (scenarioError || !scenarios || scenarios.length === 0) {
+    // 1. Get a random scenario from our local library
+    const scenarios = PRACTICE_EXERCISES
+    if (!scenarios || scenarios.length === 0) {
       return NextResponse.json({ message: 'No scenarios found to send practice for' }, { status: 200 })
     }
 
@@ -60,7 +57,7 @@ export async function GET(request: Request) {
       title: msg.title,
       body: `Practice "${scenario.title}" now! - ${msg.body}`,
       tag: 'scenario-practice',
-      url: `/scenarios/${scenario.id}`,
+      url: `/interpreter`,
     })
 
     const results = await Promise.allSettled(

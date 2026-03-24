@@ -3,7 +3,8 @@
 import './globals.css'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { ThemeProvider, useTheme } from 'next-themes'
 import {
   BookOpen,
   BarChart2,
@@ -14,17 +15,51 @@ import {
   Menu,
   X,
   Layers,
+  CreditCard,
+  HelpCircle,
+  Puzzle,
+  NotebookPen,
+  Headphones,
+  Activity,
+  Shield,
+  Moon,
+  Sun,
 } from 'lucide-react'
 
 const navLinks = [
-  { href: '/glossary',        label: 'Glossary',       icon: BookOpen       },
-  { href: '/scenarios',       label: 'Scenarios',      icon: Layers         },
-  { href: '/dashboard',       label: 'Dashboard',      icon: BarChart2      },
-  { href: '/history',         label: 'History',        icon: Clock          },
-  { href: '/weak-words',      label: 'Weak Words',     icon: AlertTriangle  },
-  { href: '/study',           label: 'Upload',         icon: Upload         },
-  { href: '/random-practice', label: 'Random',         icon: Shuffle        },
+  { href: '/glossary',        label: 'Glossary',     icon: BookOpen       },
+  { href: '/lls',             label: 'LLS Training', icon: Shield         },
+  { href: '/scenarios',       label: 'Scenarios',    icon: Layers         },
+  { href: '/interpreter',     label: 'Interpreter',  icon: Activity       },
+  { href: '/flashcards',      label: 'Flashcards',   icon: CreditCard     },
+  { href: '/quiz',            label: 'Quiz',         icon: HelpCircle     },
+  { href: '/match',           label: 'Match',        icon: Puzzle         },
+  { href: '/notes',           label: 'Notes',        icon: NotebookPen    },
+  { href: '/listening-drill', label: 'Listening',    icon: Headphones     },
+  { href: '/dashboard',       label: 'Dashboard',    icon: BarChart2      },
+  { href: '/history',         label: 'History',      icon: Clock          },
+  { href: '/weak-words',      label: 'Weak Words',   icon: AlertTriangle  },
+  { href: '/study',           label: 'Upload',       icon: Upload         },
+  { href: '/random-practice', label: 'Random',       icon: Shuffle        },
 ]
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) return <div style={{ width: 36, height: 36 }} />
+
+  return (
+    <button
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      className="btn btn-ghost"
+      style={{ padding: 8, borderRadius: '50%', color: 'var(--text-primary)' }}
+      aria-label="Toggle Theme"
+    >
+      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+    </button>
+  )
+}
 
 function Nav() {
   const pathname = usePathname()
@@ -155,8 +190,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body>
-        <Nav />
-        {children}
+        <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem>
+          <Nav />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
