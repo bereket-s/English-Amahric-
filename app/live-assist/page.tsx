@@ -8,17 +8,28 @@ type NoteTag = 'name' | 'number' | 'date' | 'term' | 'address' | 'important' | '
 type NoteEntry = { id: string; text: string; tag: NoteTag; ts: Date; pinned: boolean }
 type GlossaryResult = { id: string; english_term: string; amharic_term: string; definition?: string }
 
-// ── Built-in interpreter abbreviations expanded on spacebar ───────────────
-const ABBREVIATIONS: Record<string, string> = {
-  'pt': 'patient',     'px': 'prescription', 'dx': 'diagnosis',     'tx': 'treatment',
-  'hx': 'history',     'sx': 'symptoms',     'rx': 'medication',    'fx': 'fracture',
-  'dob': 'date of birth', 'doa': 'date of arrival', 'poc': 'point of contact',
-  'dv': 'domestic violence', 'ss': 'social security', 'hud': 'housing authority',
-  'atty': 'attorney',  'def': 'defendant',    'plt': 'plaintiff',    'imm': 'immigration',
-  'asyp': 'asylum petition', 'gc': 'green card',  'wp': 'work permit',
-  'nb': 'note well',   'asap': 'as soon as possible', 'appt': 'appointment',
-  'ref': 'referral',   'ins': 'insurance',   'auth': 'authorization',
-}
+import { BUILT_IN_ABBREVIATIONS } from '../../src/lib/abbreviations'
+
+// Convert built-in abbreviations into a quick lookup record for the spacebar expander
+const ABBREVIATIONS: Record<string, string> = 
+  BUILT_IN_ABBREVIATIONS.reduce((acc, curr) => ({ ...acc, [curr.abbr.toLowerCase()]: curr.expansion }), {})
+
+// Quick-Action Macros for Desktop & Mobile taps
+const MACROS = [
+  { label: '🕒 Time', val: () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+  { label: '➡️', val: '→' },
+  { label: '⬆️', val: '↑' },
+  { label: '⬇️', val: '↓' },
+  { label: '🏥 Pt', val: 'patient' },
+  { label: '🩺 Dx', val: 'diagnosis' },
+  { label: '💊 Rx', val: 'prescription' },
+  { label: 'Tx', val: 'treatment' },
+  { label: 'Hx', val: 'history' },
+  { label: '📅 Appt', val: 'appointment' },
+  { label: 'Q', val: 'question:' },
+  { label: 'A', val: 'answer:' },
+  { label: 'DOB', val: 'date of birth' },
+]
 
 const TAG_META: Record<NoteTag, { label: string; emoji: string; color: string; bg: string; key: string }> = {
   name:      { label: 'Name',      emoji: '👤', color: '#6366f1', bg: '#eef2ff', key: '1' },
@@ -82,6 +93,12 @@ export default function LiveAssistPage() {
   }, [notes])
 
   // ── Abbreviation expander on spacebar ───────────────────────────────────
+  const insertMacro = (m: { label: string, val: string | (() => string) }) => {
+    const value = typeof m.val === 'function' ? m.val() : m.val
+    setNoteText(prev => prev + (prev.endsWith(' ') || prev.length === 0 ? '' : ' ') + value + ' ')
+    noteInputRef.current?.focus()
+  }
+
   const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') { addNote(); return }
     if (e.key === ' ') {
@@ -256,6 +273,27 @@ export default function LiveAssistPage() {
               </button>
             )
           })}
+        </div>
+
+        {/* Macro Scroll Row */}
+        <div className="hide-scroll" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          {MACROS.map(m => (
+            <button key={m.label} onClick={() => insertMacro(m)} style={{
+              padding: '6px 12px', 
+              background: 'var(--surface)', 
+              border: '1px solid var(--border)', 
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--text-secondary)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)'
+            }}>
+              {m.label}
+            </button>
+          ))}
         </div>
 
         {/* Input */}

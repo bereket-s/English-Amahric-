@@ -300,6 +300,15 @@ body {
 }
 .animate-up { animation: animateUp 0.4s ease forwards; }
 
+/* Hide scrollbar for horizontal scrolling strips */
+.hide-scroll {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.hide-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Mobile responsive overrides ── */
 @media (max-width: 640px) {
   .mobile-only  { display: block; }
