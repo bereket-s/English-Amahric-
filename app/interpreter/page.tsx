@@ -257,7 +257,16 @@ export default function InterpreterSimPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr)', gap: 24 }}>
             {/* Main panel */}
-            <div className="card" style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', background: 'var(--surface-alt)', border: 'none' }}>
+            <div 
+              className="card" 
+              onClick={() => {
+                // Duplicate spacebar logic for mobile tap
+                if (index < 0 || index >= activeEx.script.length) return
+                if (waitingForUser || playing) nextAction()
+                else togglePlay()
+              }}
+              style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', background: 'var(--surface-alt)', border: 'none', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}
+            >
               {index === -1 && !playing && (
                 <div style={{ maxWidth: 400, margin: '40px auto' }}>
                   <Mic size={48} color="var(--brand-500)" style={{ marginBottom: 20 }} />
@@ -267,7 +276,7 @@ export default function InterpreterSimPage() {
                       ? 'The AI speaks one turn, then automatically records your Amharic interpretation and evaluates it with AI.'
                       : 'The AI speaks continuously. Shadow out loud to practice rhythm and fluency.'}
                   </p>
-                  <button onClick={togglePlay} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
+                  <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
                     <Play size={18} /> Begin Scenario
                   </button>
                 </div>
@@ -344,13 +353,14 @@ export default function InterpreterSimPage() {
 
                   {/* Controls */}
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                    <button onClick={() => playLine(index)} className="btn btn-secondary btn-lg" style={{ minWidth: 130, justifyContent: 'center' }}>
+                    <button onClick={(e) => { e.stopPropagation(); playLine(index); }} className="btn btn-secondary btn-lg" style={{ minWidth: 130, justifyContent: 'center' }}>
                       <RotateCcw size={16} /> Replay
                     </button>
                     {waitingForUser && (
                       <>
                         {isRecording && (
-                          <button onClick={() => {
+                          <button onClick={(e) => {
+                            e.stopPropagation();
                             const currentLine = activeEx?.script[index] || ''
                             const text = currentLine.split(':').slice(1).join(':').trim()
                             stopRecordingAndEvaluate(text)
@@ -359,20 +369,22 @@ export default function InterpreterSimPage() {
                           </button>
                         )}
                         {!isRecording && (
-                          <button onClick={nextAction} className="btn btn-primary btn-lg" style={{ minWidth: 160, justifyContent: 'center', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}>
+                          <button onClick={(e) => { e.stopPropagation(); nextAction(); }} className="btn btn-primary btn-lg" style={{ minWidth: 160, justifyContent: 'center', background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}>
                             Next Line <ChevronRight size={18} />
                           </button>
                         )}
                       </>
                     )}
                     {!waitingForUser && playing && (
-                      <button onClick={togglePlay} className="btn btn-secondary btn-lg" style={{ minWidth: 130, justifyContent: 'center' }}>
+                      <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="btn btn-secondary btn-lg" style={{ minWidth: 130, justifyContent: 'center' }}>
                         <Square size={16} /> Stop
                       </button>
                     )}
                   </div>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
-                    Press <kbd style={{ padding: '2px 6px', background: 'var(--surface)', borderRadius: 4, border: '1px solid var(--border)' }}>Space</kbd> to {waitingForUser ? 'move to next' : 'play/pause'}
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 16, fontWeight: 500 }}>
+                    <span className="desktop-only">Press <kbd style={{ padding: '2px 6px', background: 'var(--surface)', borderRadius: 4, border: '1px solid var(--border)', fontSize: 12 }}>Space</kbd> or click</span>
+                    <span className="mobile-only">Tap anywhere on this card</span>
+                    {' '} to {waitingForUser ? 'move to next' : 'play/pause'}
                   </p>
                 </div>
               )}
