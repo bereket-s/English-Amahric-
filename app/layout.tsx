@@ -4,6 +4,7 @@ import './globals.css'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { createClient } from '../src/lib/supabase/client'
 import { ThemeProvider, useTheme } from 'next-themes'
 import {
   BookOpen,
@@ -64,6 +65,18 @@ function ThemeToggle() {
 function Nav() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null))
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+  }
 
   return (
     <header style={{
@@ -117,16 +130,30 @@ function Nav() {
         })}
       </nav>
 
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="btn btn-secondary btn-sm"
-        style={{ marginLeft: 'auto', display: 'none' }}
-        id="hamburger-btn"
-        aria-label="Toggle menu"
-      >
-        {open ? <X size={18} /> : <Menu size={18} />}
-      </button>
+      {/* Auth & Mobile hamburger */}
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {user ? (
+            <button onClick={handleSignOut} className="btn btn-ghost btn-sm" style={{ padding: '6px 12px', borderRadius: 99, fontSize: 13 }}>
+              Sign Out
+            </button>
+          ) : (
+            <Link href="/login" className="btn btn-primary btn-sm" style={{ padding: '6px 14px', borderRadius: 99, fontSize: 13, textDecoration: 'none' }}>
+              Sign In
+            </Link>
+          )}
+        </div>
+
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="btn btn-secondary btn-sm"
+          style={{ display: 'none' }}
+          id="hamburger-btn"
+          aria-label="Toggle menu"
+        >
+          {open ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      </div>
 
       {/* Mobile dropdown */}
       {open && (
@@ -166,6 +193,17 @@ function Nav() {
               </Link>
             )
           })}
+          
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+          {user ? (
+            <button onClick={() => { handleSignOut(); setOpen(false); }} className="btn btn-ghost" style={{ justifyContent: 'center', marginTop: 4, width: '100%' }}>
+              Sign Out
+            </button>
+          ) : (
+            <Link href="/login" onClick={() => setOpen(false)} className="btn btn-primary" style={{ justifyContent: 'center', marginTop: 4, width: '100%', textDecoration: 'none' }}>
+              Sign In
+            </Link>
+          )}
         </div>
       )}
 
