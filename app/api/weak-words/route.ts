@@ -1,18 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '../../../../src/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-
-
-
 export async function GET() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
   try {
-    const { data: attempts, error } = await supabase
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let query = supabase
       .from('user_term_attempts')
       .select(`
         id,
@@ -22,48 +18,35 @@ export async function GET() {
       `)
       .limit(1000)
 
+    if (user) {
+      query = query.eq('user_id', user.id)
+    } else {
+      query = query.is('user_id', null)
+    }
+
+    const { data: attempts, error } = await query
+
     if (error) {
-      return NextResponse.json(
-        {
-          error: 'Failed to load weak words.',
-          details: error.message,
-        },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to load weak words.', details: error.message }, { status: 500 })
     }
 
     const termAttempts = (attempts || []).filter(
       (item) => (item.feedback_json?.practice_type || 'term') === 'term'
     )
 
-    const grouped: Record<
-      string,
-      {
-        study_entry_id: string
-        attempts: number
-        totalScore: number
-      }
-    > = {}
+    const grouped: Record<string, { study_entry_id: string; attempts: number; totalScore: number }> = {}
 
     for (const attempt of termAttempts) {
       if (!attempt.study_entry_id) continue
-
       if (!grouped[attempt.study_entry_id]) {
-        grouped[attempt.study_entry_id] = {
-          study_entry_id: attempt.study_entry_id,
-          attempts: 0,
-          totalScore: 0,
-        }
+        grouped[attempt.study_entry_id] = { study_entry_id: attempt.study_entry_id, attempts: 0, totalScore: 0 }
       }
-
       grouped[attempt.study_entry_id].attempts += 1
       grouped[attempt.study_entry_id].totalScore += attempt.correctness_score || 0
     }
 
     const groupedList = Object.values(grouped)
-
     const studyEntryIds = groupedList.map((item) => item.study_entry_id)
-
     let entriesMap: Record<string, any> = {}
 
     if (studyEntryIds.length > 0) {
@@ -73,18 +56,9 @@ export async function GET() {
         .in('id', studyEntryIds)
 
       if (entriesError) {
-        return NextResponse.json(
-          {
-            error: 'Failed to load study entries.',
-            details: entriesError.message,
-          },
-          { status: 500 }
-        )
+        return NextResponse.json({ error: 'Failed to load study entries.', details: entriesError.message }, { status: 500 })
       }
-
-      entriesMap = Object.fromEntries(
-        (entries || []).map((entry) => [entry.id, entry])
-      )
+      entriesMap = Object.fromEntries((entries || []).map((entry) => [entry.id, entry]))
     }
 
     const weakWords = groupedList
@@ -100,17 +74,8 @@ export async function GET() {
       .sort((a, b) => a.averageScore - b.averageScore)
       .slice(0, 20)
 
-    return NextResponse.json({
-      success: true,
-      weakWords,
-    })
+    return NextResponse.json({ success: true, weakWords })
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: 'Failed to load weak words.',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to load weak words.', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }

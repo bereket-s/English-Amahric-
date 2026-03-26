@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '../../../../src/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-
-
 export async function GET() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
   try {
-    const { data: attempts, error: attemptsError } = await supabase
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    let query = supabase
       .from('user_term_attempts')
       .select(`
         id,
@@ -24,6 +21,14 @@ export async function GET() {
       `)
       .order('created_at', { ascending: false })
       .limit(100)
+
+    if (user) {
+      query = query.eq('user_id', user.id)
+    } else {
+      query = query.is('user_id', null)
+    }
+
+    const { data: attempts, error: attemptsError } = await query
 
     if (attemptsError) {
       return NextResponse.json(
