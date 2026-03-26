@@ -24,12 +24,17 @@ import {
   Shield,
   Moon,
   Sun,
+  Phone,
+  GraduationCap,
+  MessageCircle,
 } from 'lucide-react'
 
 const navLinks = [
+  { href: '/live-assist',     label: 'Live Assist',  icon: Phone          },
   { href: '/glossary',        label: 'Glossary',     icon: BookOpen       },
+  { href: '/hub',             label: 'Dev Hub',      icon: GraduationCap  },
+  { href: '/pronunciation',   label: 'Pronunciation', icon: MessageCircle  },
   { href: '/lls',             label: 'LLS Training', icon: Shield         },
-  { href: '/scenarios',       label: 'Scenarios',    icon: Layers         },
   { href: '/interpreter',     label: 'Interpreter',  icon: Activity       },
   { href: '/flashcards',      label: 'Flashcards',   icon: CreditCard     },
   { href: '/quiz',            label: 'Quiz',         icon: HelpCircle     },

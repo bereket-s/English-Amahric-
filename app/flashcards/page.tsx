@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, useMotionValue, useTransform, useAnimation } from 'framer-motion'
-import { Layers, RotateCcw, ChevronRight, ChevronLeft, Star, Zap, Trophy, BookOpen, Image as ImageIcon, Volume2 } from 'lucide-react'
+import { Layers, RotateCcw, ChevronRight, ChevronLeft, Star, Zap, Trophy, BookOpen, Volume2, Mic, MicOff, Loader2, CheckCircle } from 'lucide-react'
 import { useWikiImage } from '../../src/lib/useWikiImage'
+import Recorder, { RecorderRef } from '../../components/Recorder'
 
 type Glossary = { id: string; english_term: string; amharic_term: string }
 
@@ -21,6 +22,14 @@ export default function FlashcardsPage() {
   const [loading, setLoading] = useState(true)
   const [finished, setFinished] = useState(false)
   const [showCombo, setShowCombo] = useState(false)
+
+  // Voice eval state
+  const recorderRef = useRef<RecorderRef>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [isEvaluating, setIsEvaluating] = useState(false)
+  const [voiceScore, setVoiceScore] = useState<number | null>(null)
+  const [voiceMsg, setVoiceMsg] = useState('')
+  const autoStopRef = useRef<NodeJS.Timeout | null>(null)
 
   // Framer Motion physics for swiping
   const controls = useAnimation()
@@ -53,11 +62,59 @@ export default function FlashcardsPage() {
   const { imageUrl, loading: imageLoading } = useWikiImage(card?.english_term || '')
 
   const handleClick = (e?: React.MouseEvent) => {
-    // If the click was on the volume button, do not flip the card
     if ((e?.target as Element)?.closest('.volume-btn')) return
-    
+    if ((e?.target as Element)?.closest('.voice-btn')) return
     setFlipped(f => !f)
   }
+
+  const resetVoice = () => {
+    setVoiceScore(null)
+    setVoiceMsg('')
+    setIsRecording(false)
+    setIsEvaluating(false)
+  }
+
+  const startVoiceRecord = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isRecording || isEvaluating) return
+    resetVoice()
+    setIsRecording(true)
+    setVoiceMsg('Speak in Amharic…')
+    recorderRef.current?.startRecording()
+    autoStopRef.current = setTimeout(() => stopVoiceRecord(e), 8000)
+  }
+
+  const stopVoiceRecord = (e: React.MouseEvent | Event) => {
+    if (e && (e as React.MouseEvent).stopPropagation) (e as React.MouseEvent).stopPropagation()
+    if (autoStopRef.current) clearTimeout(autoStopRef.current)
+    setIsRecording(false)
+    recorderRef.current?.stopRecording()
+  }
+
+  const evaluateVoiceBlob = useCallback(async (blob: Blob) => {
+    const c = deck[index]
+    if (!c) return
+    setIsEvaluating(true)
+    setVoiceMsg('Evaluating…')
+    try {
+      const form = new FormData()
+      form.append('file', new File([blob], 'fc.webm', { type: 'audio/webm' }))
+      form.append('expectedLanguage', 'am')
+      const tRes = await fetch('/api/transcribe', { method: 'POST', body: form })
+      const tData = await tRes.json()
+      if (!tData.text) { setVoiceMsg('Could not hear you'); setIsEvaluating(false); return }
+      const eRes = await fetch('/api/evaluate-interpretation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ englishText: c.english_term, amharicText: tData.text }),
+      })
+      const eData = await eRes.json()
+      const { score } = eData.evaluation || { score: 0 }
+      setVoiceScore(score)
+      setVoiceMsg('')
+    } catch { setVoiceMsg('Evaluation failed') }
+    finally { setIsEvaluating(false) }
+  }, [deck, index])
 
   const playAudio = (text: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -70,8 +127,7 @@ export default function FlashcardsPage() {
   const next = async (outcome: 'know' | 'learning') => {
     if (!deck[index]) return
     const id = deck[index].id
-    
-    // Animate out
+    resetVoice()
     await controls.start({ 
       x: outcome === 'know' ? 300 : -300, 
       opacity: 0, 
@@ -324,6 +380,60 @@ export default function FlashcardsPage() {
         </motion.div>
       )}
 
+      {/* Voice recorder — hidden, triggered by startVoiceRecord */}
+      <div style={{ display: 'none' }}>
+        <Recorder ref={recorderRef} onRecorded={evaluateVoiceBlob} />
+      </div>
+
+      {/* Voice score strip */}
+      {!flipped && card && (
+        <div style={{ maxWidth: 400, margin: '0 auto 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isRecording && !isEvaluating && voiceScore === null && (
+            <button
+              className="voice-btn btn btn-secondary"
+              onClick={startVoiceRecord}
+              style={{ flex: 1, justifyContent: 'center', gap: 6, height: 44, borderRadius: 14, fontSize: 13, fontWeight: 700 }}
+            >
+              <Mic size={16} /> Say in Amharic (get scored)
+            </button>
+          )}
+          {isRecording && (
+            <button
+              className="voice-btn btn"
+              onClick={stopVoiceRecord}
+              style={{ flex: 1, justifyContent: 'center', gap: 6, height: 44, borderRadius: 14, fontSize: 13, fontWeight: 700, background: '#dc2626', color: '#fff', border: 'none' }}
+            >
+              <MicOff size={16} /> Done Speaking
+            </button>
+          )}
+          {isEvaluating && (
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: 'var(--brand-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Loader2 size={16} style={{ animation: 'spin-slow 1s linear infinite' }} /> Evaluating…
+            </div>
+          )}
+          {!isEvaluating && voiceScore !== null && (
+            <div className="animate-bounceIn" style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: voiceScore >= 80 ? 'var(--success-bg)' : voiceScore >= 60 ? 'var(--warning-bg)' : 'var(--danger-bg)',
+              border: `1.5px solid ${voiceScore >= 80 ? '#6ee7b7' : voiceScore >= 60 ? '#fde68a' : '#fca5a5'}`,
+              borderRadius: 14, padding: '8px 14px',
+            }}>
+              <CheckCircle size={16} color={voiceScore >= 80 ? '#059669' : voiceScore >= 60 ? '#d97706' : '#dc2626'} />
+              <span style={{ fontWeight: 800, fontSize: 15, color: voiceScore >= 80 ? '#059669' : voiceScore >= 60 ? '#d97706' : '#dc2626' }}>
+                {voiceScore}%
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {voiceScore >= 80 ? '🔥 Excellent' : voiceScore >= 60 ? '👍 Good' : '💪 Try again'}
+              </span>
+              <button onClick={e => { e.stopPropagation(); resetVoice() }} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600 }}>✕</button>
+            </div>
+          )}
+          {voiceMsg && !isEvaluating && voiceScore === null && (
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>{voiceMsg}</div>
+          )}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center', maxWidth: 400, margin: '0 auto' }}>
         <button
@@ -342,8 +452,11 @@ export default function FlashcardsPage() {
         </button>
       </div>
       <p style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginTop: 20 }}>
-        Tap card to reveal · Navigate below
+        Tap card to reveal · Swipe or tap buttons to sort
       </p>
+      <style dangerouslySetInnerHTML={{__html:`
+        @keyframes spin-slow { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+      `}} />
     </main>
   )
 }
