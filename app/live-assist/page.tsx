@@ -1,567 +1,326 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, X, Plus, Pin, Copy, Trash2, Clock, CheckCircle, Tag, BookOpen, Keyboard } from 'lucide-react'
-
-// ── Types ──────────────────────────────────────────────────────────────────
-type NoteTag = 'name' | 'number' | 'date' | 'term' | 'address' | 'important' | 'general'
-type NoteEntry = { id: string; text: string; tag: NoteTag; ts: Date; pinned: boolean }
-type GlossaryResult = { id: string; english_term: string; amharic_term: string; definition?: string }
-
+import { useState, useEffect, useRef } from 'react'
+import { Search, X, Copy, CheckCircle, PenTool, Book, Stethoscope } from 'lucide-react'
+import { PAIN_DESCRIPTORS, COMMON_MEDICINES, ANATOMY, VITAL_SIGNS_AND_PHRASES, ReferenceItem } from '../../src/lib/medical-reference'
 import { BUILT_IN_ABBREVIATIONS } from '../../src/lib/abbreviations'
 
-// Convert built-in abbreviations into a quick lookup record for the spacebar expander
-const ABBREVIATIONS: Record<string, string> = 
-  BUILT_IN_ABBREVIATIONS.reduce((acc, curr) => ({ ...acc, [curr.abbr.toLowerCase()]: curr.expansion }), {})
+type Tab = 'notes' | 'glossary' | 'references'
 
-// Quick-Action Macros for Desktop & Mobile taps
 const MACROS = [
-  { label: '🕒 Time', val: () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
-  { label: '➡️', val: '→' },
-  { label: '⬆️', val: '↑' },
-  { label: '⬇️', val: '↓' },
-  { label: '🏥 Pt', val: 'patient' },
-  { label: '🩺 Dx', val: 'diagnosis' },
-  { label: '💊 Rx', val: 'prescription' },
-  { label: 'Tx', val: 'treatment' },
-  { label: 'Hx', val: 'history' },
-  { label: '📅 Appt', val: 'appointment' },
-  { label: 'Q', val: 'question:' },
-  { label: 'A', val: 'answer:' },
-  { label: 'DOB', val: 'date of birth' },
+  { label: '🕒', val: () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) },
+  { label: 'Dr.', val: 'Dr: ' },
+  { label: 'Pt.', val: 'Pt: ' },
+  { label: 'Int.', val: 'Int: ' },
+  { label: 'Rx', val: 'Prescription ' },
+  { label: 'Tx', val: 'Treatment ' },
+  { label: 'Hx', val: 'History ' },
+  { label: 'DOB', val: 'Date of Birth: ' },
 ]
 
-const TAG_META: Record<NoteTag, { label: string; emoji: string; color: string; bg: string; key: string }> = {
-  name:      { label: 'Name',      emoji: '👤', color: '#6366f1', bg: '#eef2ff', key: '1' },
-  number:    { label: 'Number',    emoji: '🔢', color: '#3b82f6', bg: '#eff6ff', key: '2' },
-  date:      { label: 'Date',      emoji: '📅', color: '#8b5cf6', bg: '#f5f3ff', key: '3' },
-  term:      { label: 'Term',      emoji: '📖', color: '#10b981', bg: '#ecfdf5', key: '4' },
-  address:   { label: 'Address',   emoji: '🏠', color: '#f59e0b', bg: '#fffbeb', key: '5' },
-  important: { label: 'Important', emoji: '❗', color: '#ef4444', bg: '#fef2f2', key: '6' },
-  general:   { label: 'General',   emoji: '📝', color: '#6b7280', bg: '#f9fafb', key: '7' },
-}
-
-// ── Popup state ────────────────────────────────────────────────────────────
-type Popup = {
-  visible: boolean
-  x: number; y: number
-  word: string
-  results: GlossaryResult[]
-  loading: boolean
-}
-
-function timeStr(d: Date) {
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-export default function LiveAssistPage() {
-  // Note input
+export default function MobileLiveAssist() {
+  const [activeTab, setActiveTab] = useState<Tab>('notes')
   const [noteText, setNoteText] = useState('')
-  const [noteTag, setNoteTag] = useState<NoteTag>('general')
-  const [notes, setNotes] = useState<NoteEntry[]>([])
-  const noteInputRef = useRef<HTMLInputElement>(null)
-
-  // Manual glossary search tab
-  const [activeTab, setActiveTab] = useState<'notes' | 'search'>('notes')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  
+  // Glossary state
   const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<GlossaryResult[]>([])
+  const [glossaryResults, setGlossaryResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
-  const searchDebounce = useRef<NodeJS.Timeout | null>(null)
+  
+  // UI state
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  
+  // Reference Accordion state
+  const [openRef, setOpenRef] = useState<string>('pain')
 
-  // Highlight-to-translate popup
-  const [popup, setPopup] = useState<Popup>({ visible: false, x: 0, y: 0, word: '', results: [], loading: false })
-  const popupRef = useRef<HTMLDivElement>(null)
-  const noteListRef = useRef<HTMLDivElement>(null)
-
-  // Copied all
-  const [copiedAll, setCopiedAll] = useState(false)
-
-  // ── Load / save notes ───────────────────────────────────────────────────
+  // Load notes safely
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('live_assist_v2')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        setNotes(parsed.map((n: any) => ({ ...n, ts: new Date(n.ts) })))
-      }
+      const saved = localStorage.getItem('live_assist_mobile_notes')
+      if (saved) setNoteText(saved)
     } catch {}
   }, [])
 
+  // Save notes
   useEffect(() => {
-    localStorage.setItem('live_assist_v2', JSON.stringify(notes))
-  }, [notes])
+    try {
+      localStorage.setItem('live_assist_mobile_notes', noteText)
+    } catch {}
+  }, [noteText])
 
-  // ── Abbreviation expander on spacebar ───────────────────────────────────
-  const insertMacro = (m: { label: string, val: string | (() => string) }) => {
-    const value = typeof m.val === 'function' ? m.val() : m.val
-    setNoteText(prev => prev + (prev.endsWith(' ') || prev.length === 0 ? '' : ' ') + value + ' ')
-    noteInputRef.current?.focus()
+  const insertMacro = (val: string | (() => string)) => {
+    const textToInsert = typeof val === 'function' ? val() : val
+    
+    if (textareaRef.current) {
+      const start = textareaRef.current.selectionStart
+      const end = textareaRef.current.selectionEnd
+      const newText = noteText.substring(0, start) + textToInsert + noteText.substring(end)
+      setNoteText(newText)
+      
+      // Move cursor after the inserted text
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.setSelectionRange(start + textToInsert.length, start + textToInsert.length)
+        }
+      }, 0)
+    } else {
+      setNoteText(prev => prev + ' ' + textToInsert)
+    }
   }
 
-  const handleNoteKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { addNote(); return }
+  // Abbreviation Expander (runs on space)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === ' ') {
-      const words = noteText.trimEnd().split(/\s+/)
-      const last = words[words.length - 1].toLowerCase()
-      if (ABBREVIATIONS[last]) {
+      // Find the last word typed
+      const cursorPosition = textareaRef.current?.selectionEnd || noteText.length
+      const textBeforeCursor = noteText.substring(0, cursorPosition)
+      const words = textBeforeCursor.trimEnd().split(/\s+/)
+      const lastWord = words[words.length - 1].toLowerCase()
+      
+      const abbrevs = BUILT_IN_ABBREVIATIONS.reduce((acc, curr) => ({ ...acc, [curr.abbr.toLowerCase()]: curr.expansion }), {} as Record<string,string>)
+      
+      if (abbrevs[lastWord]) {
         e.preventDefault()
-        const expanded = noteText.slice(0, noteText.lastIndexOf(last)) + ABBREVIATIONS[last] + ' '
-        setNoteText(expanded)
+        const textBeforeReplacement = textBeforeCursor.slice(0, textBeforeCursor.lastIndexOf(lastWord))
+        const textAfterCursor = noteText.substring(cursorPosition)
+        
+        const newText = textBeforeReplacement + abbrevs[lastWord] + ' ' + textAfterCursor
+        setNoteText(newText)
+        
+        const newCursorPos = textBeforeReplacement.length + abbrevs[lastWord].length + 1
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.setSelectionRange(newCursorPos, newCursorPos)
+          }
+        }, 0)
       }
     }
-    // Alt+1-7 to quickly switch tag
-    if (e.altKey) {
-      const tags = Object.keys(TAG_META) as NoteTag[]
-      const idx = parseInt(e.key) - 1
-      if (idx >= 0 && idx < tags.length) { setNoteTag(tags[idx]); e.preventDefault() }
-    }
   }
 
-  const addNote = () => {
-    if (!noteText.trim()) return
-    setNotes(n => [{
-      id: Date.now().toString(),
-      text: noteText.trim(),
-      tag: noteTag,
-      ts: new Date(),
-      pinned: false,
-    }, ...n])
-    setNoteText('')
-    noteInputRef.current?.focus()
-  }
-
-  const togglePin = (id: string) => setNotes(n => n.map(e => e.id === id ? { ...e, pinned: !e.pinned } : e))
-  const deleteNote = (id: string) => setNotes(n => n.filter(e => e.id !== id))
-
-  const copyAll = () => {
-    const sorted = [...notes].sort((a, b) => a.ts.getTime() - b.ts.getTime())
-    const text = sorted.map(n =>
-      `[${timeStr(n.ts)}] [${TAG_META[n.tag].label}] ${n.text}`
-    ).join('\n')
-    navigator.clipboard.writeText(text).then(() => { setCopiedAll(true); setTimeout(() => setCopiedAll(false), 2000) })
-  }
-
-  // ── Manual search debounce ──────────────────────────────────────────────
+  // Glossary Lookup
   useEffect(() => {
-    if (!query.trim()) { setSearchResults([]); return }
-    if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    setSearching(true)
-    searchDebounce.current = setTimeout(async () => {
+    if (!query.trim()) { setGlossaryResults([]); return }
+    const t = setTimeout(async () => {
+      setSearching(true)
       try {
-        const res = await fetch(`/api/glossary?q=${encodeURIComponent(query)}&limit=8`)
+        const res = await fetch(`/api/glossary?q=${encodeURIComponent(query)}&limit=15`)
         const data = await res.json()
-        setSearchResults(data.entries || [])
+        setGlossaryResults(data.entries || [])
       } catch {}
       setSearching(false)
-    }, 280)
+    }, 300)
+    return () => clearTimeout(t)
   }, [query])
 
-  // ── Highlight-to-translate ───────────────────────────────────────────────
-  const lookupWord = useCallback(async (word: string, x: number, y: number) => {
-    const clean = word.trim().replace(/[.,!?;:'"]/g, '')
-    if (clean.length < 2) return
-    setPopup({ visible: true, x, y, word: clean, results: [], loading: true })
-    try {
-      const res = await fetch(`/api/glossary?q=${encodeURIComponent(clean)}&limit=4`)
-      const data = await res.json()
-      setPopup(p => ({ ...p, results: data.entries || [], loading: false }))
-    } catch {
-      setPopup(p => ({ ...p, loading: false }))
-    }
-  }, [])
-
-  const handleTextSelect = useCallback((e: React.MouseEvent) => {
-    const sel = window.getSelection()
-    if (!sel || sel.isCollapsed) { setPopup(p => ({ ...p, visible: false })); return }
-    const text = sel.toString().trim()
-    if (text.length < 2 || text.length > 60) { setPopup(p => ({ ...p, visible: false })); return }
-    const rect = sel.getRangeAt(0).getBoundingClientRect()
-    lookupWord(text, rect.left + rect.width / 2, rect.bottom + window.scrollY + 8)
-  }, [lookupWord])
-
-  // ── Close popup on outside click ─────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
-        setPopup(p => ({ ...p, visible: false }))
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const copyTerm = (amharic: string, id: string) => {
-    navigator.clipboard.writeText(amharic).then(() => { setCopiedId(id); setTimeout(() => setCopiedId(null), 1500) })
+  const copyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 1500)
+    })
   }
 
-  const addTermAsNote = (entry: GlossaryResult) => {
-    setNotes(n => [{
-      id: Date.now().toString(),
-      text: `${entry.english_term} = ${entry.amharic_term}`,
-      tag: 'term',
-      ts: new Date(),
-      pinned: false,
-    }, ...n])
-    setPopup(p => ({ ...p, visible: false }))
-    setQuery('')
-    setSearchResults([])
+  const renderReferenceSection = (id: string, title: string, items: ReferenceItem[]) => {
+    const isOpen = openRef === id
+    return (
+      <div style={{ marginBottom: 12, background: 'var(--surface)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)' }}>
+        <button 
+          onClick={() => setOpenRef(isOpen ? '' : id)}
+          style={{ width: '100%', padding: '16px', background: isOpen ? 'var(--surface-alt)' : 'transparent', border: 'none', textAlign: 'left', fontWeight: 800, fontSize: 17, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
+          {title}
+          <span style={{ color: 'var(--text-muted)' }}>{isOpen ? '▼' : '▶'}</span>
+        </button>
+        {isOpen && (
+          <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ padding: '12px 14px', background: 'var(--surface-alt)', borderRadius: 12 }}>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{item.english}</div>
+                {item.examples && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontStyle: 'italic' }}>Examples: {item.examples}</div>}
+                <div style={{ color: 'var(--brand-600)', fontWeight: 700, fontSize: 16, margin: '4px 0' }}>{item.amharic}</div>
+                {item.phonetic && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{item.phonetic}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
   }
-
-  const sortedNotes = [...notes].sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1
-    if (!a.pinned && b.pinned) return 1
-    return b.ts.getTime() - a.ts.getTime()
-  })
 
   return (
-    <main style={{ maxWidth: 680, margin: '0 auto', padding: '0 0 120px', position: 'relative' }}>
-
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #1e1f3e, #2d2f5e)',
-        padding: '16px 20px 18px',
-        borderRadius: '0 0 24px 24px',
-        marginBottom: 16,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, color: '#fff', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-              📝 Live Call Note Assistant
-            </h1>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>
-              Advanced digital notepad · Highlight any word for instant translation
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            {notes.length > 0 && (
-              <button onClick={copyAll} style={{
-                padding: '8px 14px', background: copiedAll ? '#059669' : 'rgba(255,255,255,0.15)',
-                border: 'none', borderRadius: 99, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                {copiedAll ? <><CheckCircle size={13} /> Copied!</> : <><Copy size={13} /> Copy All</>}
-              </button>
-            )}
-            {notes.length > 0 && (
-              <button onClick={() => { if (confirm('Clear all notes?')) setNotes([]) }} style={{
-                padding: '8px 12px', background: 'rgba(239,68,68,0.2)', border: 'none', borderRadius: 99, color: '#fca5a5', fontWeight: 700, fontSize: 12, cursor: 'pointer',
-              }}>
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: 'var(--background)' }}>
+      
+      {/* Header */}
+      <div style={{ padding: '16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>Live Assist</h1>
+        {activeTab === 'notes' && noteText && (
+           <button 
+             onClick={() => { if (confirm('Clear notes?')) setNoteText('') }} 
+             style={{ fontSize: 14, fontWeight: 700, color: 'var(--error)', background: 'rgba(239, 68, 68, 0.1)', border: 'none', padding: '6px 12px', borderRadius: 99 }}
+           >
+             Clear
+           </button>
+        )}
       </div>
 
-      {/* ── Quick-note input ─────────────────────────────────────────── */}
-      <div style={{ padding: '0 16px', marginBottom: 14 }}>
-        {/* Tag row */}
-        <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto', paddingBottom: 2 }}>
-          {(Object.keys(TAG_META) as NoteTag[]).map((t, i) => {
-            const m = TAG_META[t]
-            return (
-              <button key={t} onClick={() => setNoteTag(t)} title={`Alt+${i + 1}`} style={{
-                flexShrink: 0, padding: '5px 11px', borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border: `2px solid ${noteTag === t ? m.color : 'transparent'}`,
-                background: noteTag === t ? m.bg : 'var(--surface)',
-                color: noteTag === t ? m.color : 'var(--text-muted)',
-                whiteSpace: 'nowrap', transition: 'all 0.15s',
-              }}>
-                {m.emoji} {m.label}
-                <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.5 }}>Alt+{i + 1}</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Macro Scroll Row */}
-        <div className="hide-scroll" style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto', paddingBottom: 4 }}>
-          {MACROS.map(m => (
-            <button key={m.label} onClick={() => insertMacro(m)} style={{
-              padding: '6px 12px', 
-              background: 'var(--surface)', 
-              border: '1px solid var(--border)', 
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Input */}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            ref={noteInputRef}
-            className="input"
-            placeholder={`${TAG_META[noteTag].emoji} Type a note… (Enter to save · abbreviations auto-expand)`}
+      {/* Main Content Area */}
+      <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+        
+        {/* TAB 1: NOTES */}
+        <div style={{ display: activeTab === 'notes' ? 'flex' : 'none', flexDirection: 'column', height: '100%' }}>
+          <textarea
+            ref={textareaRef}
             value={noteText}
             onChange={e => setNoteText(e.target.value)}
-            onKeyDown={handleNoteKeyDown}
-            style={{ flex: 1, fontSize: 15, borderRadius: 14 }}
-            autoFocus
+            onKeyDown={handleKeyDown}
+            placeholder="Tap to start taking notes...&#10;&#10;• Type and this will auto-save.&#10;• Use quick buttons below.&#10;• Type abbrev + space to expand (e.g. pt + space)."
+            style={{ 
+              flex: 1, 
+              width: '100%', 
+              padding: '20px', 
+              fontSize: 18, 
+              lineHeight: 1.6, 
+              border: 'none', 
+              resize: 'none', 
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              fontFamily: 'inherit'
+            }}
           />
-          <button onClick={addNote} disabled={!noteText.trim()} style={{
-            width: 48, height: 48, flexShrink: 0,
-            background: noteText.trim() ? `linear-gradient(135deg, ${TAG_META[noteTag].color}, ${TAG_META[noteTag].color}cc)` : 'var(--surface-alt)',
-            border: 'none', borderRadius: 14, cursor: noteText.trim() ? 'pointer' : 'not-allowed',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s',
+          
+          {/* Toolbelt (Sticky above bottom nav) */}
+          <div className="hide-scroll" style={{ 
+            display: 'flex', 
+            gap: 10, 
+            padding: '12px 16px', 
+            background: 'var(--surface)', 
+            borderTop: '1px solid var(--border)',
+            overflowX: 'auto',
+            boxShadow: '0 -4px 12px rgba(0,0,0,0.05)'
           }}>
-            <Plus size={20} color={noteText.trim() ? '#fff' : 'var(--text-muted)'} />
-          </button>
-        </div>
-
-        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <span><Keyboard size={10} style={{ verticalAlign: 'middle' }} /> <strong>Enter</strong> = save</span>
-          <span><strong>Space</strong> after abbrev. = expand (pt→patient, dx→diagnosis…)</span>
-          <span><strong>Select text</strong> in notes = instant translation popup</span>
-        </div>
-      </div>
-
-      {/* ── Tabs ─────────────────────────────────────────────────────── */}
-      <div style={{ padding: '0 16px', marginBottom: 12 }}>
-        <div style={{ display: 'flex', background: 'var(--surface-alt)', borderRadius: 14, padding: 4, gap: 4 }}>
-          {(['notes', 'search'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              flex: 1, padding: '9px', background: activeTab === tab ? 'var(--surface)' : 'transparent',
-              border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 14,
-              color: activeTab === tab ? 'var(--brand-600)' : 'var(--text-muted)',
-              cursor: 'pointer', boxShadow: activeTab === tab ? 'var(--shadow-sm)' : 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s',
-            }}>
-              {tab === 'notes'
-                ? <><Tag size={14} /> Notes {notes.length > 0 && <span style={{ background: 'var(--brand-500)', color: '#fff', borderRadius: 99, padding: '1px 6px', fontSize: 11 }}>{notes.length}</span>}</>
-                : <><Search size={14} /> Lookup</>
-              }
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── NOTES TAB ────────────────────────────────────────────────── */}
-      {activeTab === 'notes' && (
-        <div ref={noteListRef} style={{ padding: '0 16px' }} onMouseUp={handleTextSelect}>
-          {notes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>Ready to take notes</p>
-              <p style={{ fontSize: 13, lineHeight: 1.7, maxWidth: 320, margin: '0 auto' }}>
-                Type in the bar above and press <strong>Enter</strong> to save.<br />
-                <strong>Select / highlight</strong> any word in your notes to instantly see its meaning and Amharic translation.
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {sortedNotes.map(note => {
-                const m = TAG_META[note.tag]
-                return (
-                  <div key={note.id} style={{
-                    background: 'var(--surface)',
-                    border: `1.5px solid ${note.pinned ? m.color + '60' : 'var(--border)'}`,
-                    borderLeft: `4px solid ${m.color}`,
-                    borderRadius: 14,
-                    padding: '12px 14px',
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    boxShadow: note.pinned ? `0 0 0 2px ${m.color}20` : 'var(--shadow-sm)',
-                    transition: 'all 0.2s',
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: m.bg, color: m.color }}>
-                          {m.emoji} {m.label}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <Clock size={10} /> {timeStr(note.ts)}
-                        </span>
-                        {note.pinned && <span style={{ fontSize: 10, fontWeight: 700, color: m.color }}>📌 Pinned</span>}
-                      </div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.5, wordBreak: 'break-word', userSelect: 'text', cursor: 'text' }}>
-                        {note.text}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => togglePin(note.id)} title={note.pinned ? 'Unpin' : 'Pin'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, fontSize: 14, color: note.pinned ? m.color : 'var(--text-muted)', borderRadius: 8 }}>
-                        📌
-                      </button>
-                      <button onClick={() => deleteNote(note.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, color: 'var(--text-muted)', borderRadius: 8 }}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── SEARCH TAB ───────────────────────────────────────────────── */}
-      {activeTab === 'search' && (
-        <div style={{ padding: '0 16px' }}>
-          <div style={{ position: 'relative', marginBottom: 12 }}>
-            <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              className="input"
-              placeholder="Type any English or Amharic term…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{ paddingLeft: 40, fontSize: 16, borderRadius: 14, height: 50 }}
-              autoFocus
-            />
-            {query && (
-              <button onClick={() => { setQuery(''); setSearchResults([]) }} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X size={16} />
+            {MACROS.map(m => (
+              <button 
+                key={m.label} 
+                onClick={() => insertMacro(m.val)}
+                style={{
+                  padding: '10px 18px',
+                  background: 'var(--surface-alt)',
+                  border: '1.5px solid var(--border)',
+                  borderRadius: 14,
+                  fontWeight: 800,
+                  fontSize: 16,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  color: 'var(--text-primary)'
+                }}
+              >
+                {m.label}
               </button>
-            )}
-          </div>
-
-          {searching && <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)', fontSize: 14 }}>Searching…</div>}
-
-          {!searching && !query && (
-            <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--text-muted)' }}>
-              <BookOpen size={40} style={{ opacity: 0.2, marginBottom: 12 }} />
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>Quick Glossary Lookup</p>
-              <p style={{ fontSize: 13, lineHeight: 1.6 }}>
-                Or <strong>select/highlight</strong> any word in your notes on the Notes tab for an automatic popup translation.
-              </p>
-            </div>
-          )}
-
-          {!searching && query && searchResults.length === 0 && (
-            <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: 14 }}>
-              No results for <strong>"{query}"</strong>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {searchResults.map(entry => (
-              <div key={entry.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', marginBottom: 2 }}>{entry.english_term}</div>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--brand-600)' }}>{entry.amharic_term}</div>
-                  {entry.definition && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
-                      {entry.definition.slice(0, 90)}{entry.definition.length > 90 ? '…' : ''}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-                  <button onClick={() => copyTerm(entry.amharic_term, entry.id)} style={{
-                    padding: '6px 12px', background: copiedId === entry.id ? '#ecfdf5' : 'var(--surface-alt)',
-                    border: `1.5px solid ${copiedId === entry.id ? '#6ee7b7' : 'var(--border)'}`,
-                    borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    color: copiedId === entry.id ? '#059669' : 'var(--text-secondary)',
-                    display: 'flex', alignItems: 'center', gap: 4, transition: 'all 0.2s', whiteSpace: 'nowrap',
-                  }}>
-                    {copiedId === entry.id ? <><CheckCircle size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
-                  </button>
-                  <button onClick={() => addTermAsNote(entry)} style={{
-                    padding: '6px 12px', background: 'var(--brand-50)', border: '1.5px solid var(--brand-200)',
-                    borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--brand-700)',
-                    display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
-                  }}>
-                    <Plus size={12} /> Note
-                  </button>
-                </div>
-              </div>
             ))}
           </div>
         </div>
-      )}
 
-      {/* ── HIGHLIGHT-TO-TRANSLATE POPUP ─────────────────────────────── */}
-      {popup.visible && (
-        <div ref={popupRef} style={{
-          position: 'absolute',
-          top: popup.y,
-          left: Math.max(12, Math.min(popup.x - 160, window.innerWidth - 340)),
-          width: 320,
-          background: 'var(--surface)',
-          borderRadius: 18,
-          boxShadow: '0 16px 48px rgba(0,0,0,0.2), 0 4px 16px rgba(0,0,0,0.1)',
-          border: '1.5px solid var(--border)',
-          zIndex: 200,
-          overflow: 'hidden',
-          animation: 'popupIn 0.18s ease',
-        }}>
-          {/* Popup header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px 8px', borderBottom: '1px solid var(--border)', background: 'var(--surface-alt)' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Search size={12} />
-              <em style={{ color: 'var(--text-primary)' }}>"{popup.word}"</em>
-            </div>
-            <button onClick={() => setPopup(p => ({ ...p, visible: false }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
-              <X size={14} />
-            </button>
+        {/* TAB 2: GLOSSARY */}
+        <div style={{ display: activeTab === 'glossary' ? 'block' : 'none', padding: '16px' }}>
+          <div style={{ position: 'relative', marginBottom: 20 }}>
+             <Search size={22} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+             <input
+               value={query}
+               onChange={e => setQuery(e.target.value)}
+               placeholder="Search dictionary..."
+               style={{ width: '100%', padding: '16px 16px 16px 48px', fontSize: 18, borderRadius: 16, border: '1.5px solid var(--border)', background: 'var(--surface)', outline: 'none' }}
+             />
+             {query && (
+               <button onClick={() => setQuery('')} style={{ position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', padding: 4 }}>
+                 <X size={20} />
+               </button>
+             )}
           </div>
-
-          {/* Popup content */}
-          <div style={{ padding: '8px 0', maxHeight: 260, overflowY: 'auto' }}>
-            {popup.loading && (
-              <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: 13 }}>Looking up…</div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {searching && <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 16 }}>Searching...</p>}
+            
+            {!searching && !query && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                <Book size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+                <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Quick Dictionary Lookup</p>
+                <p style={{ fontSize: 15, lineHeight: 1.6 }}>Search for any English or Amharic medical term instantly while on your call.</p>
+              </div>
             )}
-            {!popup.loading && popup.results.length === 0 && (
-              <div style={{ padding: '14px 16px' }}>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  No glossary entry found for this term.
-                </p>
-                <button onClick={() => { setQuery(popup.word); setActiveTab('search'); setPopup(p => ({ ...p, visible: false })) }}
-                  style={{ marginTop: 8, fontSize: 12, color: 'var(--brand-600)', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Search size={12} /> Search the full glossary →
+
+            {!searching && glossaryResults.map((entry: any) => (
+              <div key={entry.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 4 }}>{entry.english_term}</div>
+                  <div style={{ color: 'var(--brand-600)', fontWeight: 700, fontSize: 17 }}>{entry.amharic_term}</div>
+                  {entry.definition && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>{entry.definition}</div>}
+                </div>
+                <button 
+                  onClick={() => copyText(entry.amharic_term, entry.id)}
+                  style={{
+                    padding: '8px 12px', background: copiedId === entry.id ? '#ecfdf5' : 'var(--surface-alt)',
+                    border: `1.5px solid ${copiedId === entry.id ? '#6ee7b7' : 'var(--border)'}`,
+                    borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    color: copiedId === entry.id ? '#059669' : 'var(--text-secondary)'
+                  }}
+                >
+                  {copiedId === entry.id ? <CheckCircle size={18} /> : <Copy size={18} />}
+                  <span style={{ fontSize: 11, fontWeight: 700 }}>{copiedId === entry.id ? 'Copied' : 'Copy'}</span>
                 </button>
               </div>
-            )}
-            {popup.results.map(entry => (
-              <div key={entry.id} style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>{entry.english_term}</div>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--brand-600)', marginBottom: entry.definition ? 4 : 0 }}>{entry.amharic_term}</div>
-                {entry.definition && (
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{entry.definition.slice(0, 100)}{entry.definition.length > 100 ? '…' : ''}</div>
-                )}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                  <button onClick={() => copyTerm(entry.amharic_term, entry.id + '_popup')} style={{
-                    padding: '5px 10px', background: copiedId === entry.id + '_popup' ? '#ecfdf5' : 'var(--surface-alt)',
-                    border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                    color: copiedId === entry.id + '_popup' ? '#059669' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4,
-                  }}>
-                    <Copy size={11} /> Copy Amharic
-                  </button>
-                  <button onClick={() => addTermAsNote(entry)} style={{
-                    padding: '5px 10px', background: 'var(--brand-50)', border: '1.5px solid var(--brand-200)',
-                    borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer', color: 'var(--brand-700)', display: 'flex', alignItems: 'center', gap: 4,
-                  }}>
-                    <Plus size={11} /> Add to Notes
-                  </button>
-                </div>
-              </div>
             ))}
           </div>
         </div>
-      )}
 
-      {/* Bottom bar */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        padding: '10px 20px', textAlign: 'center', fontSize: 11,
-        color: 'var(--text-muted)', fontWeight: 500, zIndex: 50,
-      }}>
-        📝 Digital Notepad · Select text in notes for instant translation · Notes saved locally
+        {/* TAB 3: REFERENCES */}
+        <div style={{ display: activeTab === 'references' ? 'block' : 'none', padding: '16px', background: 'var(--background)' }}>
+          <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 16, fontWeight: 500 }}>
+            Quickly reference important medical categories translated to Amharic. Tap to expand.
+          </p>
+          {renderReferenceSection('pain', '🤕 Pain Descriptors', PAIN_DESCRIPTORS)}
+          {renderReferenceSection('meds', '💊 Common Medicines', COMMON_MEDICINES)}
+          {renderReferenceSection('anatomy', '🦴 Anatomy', ANATOMY)}
+          {renderReferenceSection('vitals', '❤️ Vitals & Phrases', VITAL_SIGNS_AND_PHRASES)}
+        </div>
+
       </div>
 
-      <style dangerouslySetInnerHTML={{__html:`
-        @keyframes popupIn {
-          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}} />
-    </main>
+      {/* Bottom Navigation */}
+      <div style={{ 
+        display: 'flex', 
+        background: 'var(--surface)', 
+        borderTop: '1.5px solid var(--border)', 
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        boxShadow: '0 -4px 16px rgba(0,0,0,0.06)'
+      }}>
+        {[
+          { id: 'notes', label: 'Notes', icon: PenTool },
+          { id: 'glossary', label: 'Dictionary', icon: Book },
+          { id: 'references', label: 'References', icon: Stethoscope }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as Tab)}
+            style={{
+              flex: 1,
+              padding: '14px 0 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              border: 'none',
+              background: 'transparent',
+              color: activeTab === tab.id ? 'var(--brand-600)' : 'var(--text-muted)',
+              transition: 'all 0.2s'
+            }}
+          >
+            <tab.icon size={26} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+            <span style={{ fontSize: 12, fontWeight: activeTab === tab.id ? 800 : 600 }}>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
