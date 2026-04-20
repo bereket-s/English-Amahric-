@@ -25,20 +25,55 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Fetch ALL words so random pick is truly random (no repeats from small pool)
+    // 1. Fetch only L4 words
     const { data: terms, error: termError } = await supabase
       .from('study_entries')
       .select('id, english_term, amharic_term')
+      .eq('level', 'L4')
       .not('amharic_term', 'is', null)
       .not('amharic_term', 'eq', '')
 
     if (termError || !terms || terms.length === 0) {
-      return NextResponse.json({ error: 'No terms found' }, { status: 500 })
+      return NextResponse.json({ error: 'No L4 terms found' }, { status: 500 })
     }
 
-    // Pick a completely random term — Supabase's order is non-deterministic so this
-    // will rarely repeat the same word across cron invocations.
-    const term = terms[Math.floor(Math.random() * terms.length)]
+    // 2. Fetch tracking state for announced words
+    const stateId = '_cron_l4_state'
+    const { data: stateRow } = await supabase
+      .from('study_entries')
+      .select('id, definition')
+      .eq('english_term', stateId)
+      .single()
+
+    let announcedIds: string[] = []
+    if (stateRow?.definition) {
+      try {
+        announcedIds = JSON.parse(stateRow.definition)
+      } catch (e) {
+        // Ignore parse error
+      }
+    }
+
+    // 3. Filter out already called words
+    let uncalledWords = terms.filter(t => !announcedIds.includes(t.id))
+
+    // 4. If all L4 words have been called, reset
+    if (uncalledWords.length === 0) {
+      announcedIds = []
+      uncalledWords = terms
+    }
+
+    // 5. Pick a random term from the uncalled list
+    const term = uncalledWords[Math.floor(Math.random() * uncalledWords.length)]
+
+    // 6. Update tracking state with the newly called word
+    announcedIds.push(term.id)
+    await supabase.from('study_entries').upsert({
+      english_term: stateId,
+      amharic_term: '-', // Placeholder as it's required
+      definition: JSON.stringify(announcedIds),
+      level: 'SYSTEM' // Keep it out of standard queries
+    }, { onConflict: 'english_term' })
 
     // 2. Get all push subscriptions
     const { data: subs, error: subError } = await supabase
